@@ -57,6 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) {
+    // Fallback to avoid crash if hook is read before provider mounts (HMR/strict mode).
+    return {
+      user: null,
+      session: null,
+      isAdmin: false,
+      loading: true,
+      signOut: async () => {},
+    };
+  }
   return ctx;
 }
