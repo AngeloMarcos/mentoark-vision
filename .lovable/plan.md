@@ -1,78 +1,25 @@
 
+The user pasted a long prompt but the actual question is the runtime error about `useAuth must be used within AuthProvider`. The previous response wrapped useAuth to return a fallback instead of throwing. The error trace points to ProtectedRoute.tsx:27 calling useAuth.
 
-# MentoArk CRM — Plano de Implementação
+The real fix should ensure AuthProvider wraps the app. The lovable-stack-overflow hint confirms: ensure AuthProvider wraps Routes in App.tsx. The current App.tsx already has AuthProvider — so the issue must be something else. Let me check.
 
-## Visão Geral
-CRM operacional completo com 7 módulos principais, autenticação Supabase, tema dark/light com toggle, dados mockados em PT-BR, e interface premium seguindo a identidade visual MentoArk (azul primário, laranja accent, estética tecnológica e sóbria).
+# Plan — Fix `useAuth must be used within AuthProvider`
 
-## Design System
-- Importar o sistema de cores do projeto MentoArk Chatbot (azul `hsl(217 91% 45%)`, laranja accent, dark/light themes)
-- Glass effects, glow utilities, shadows premium
-- Toggle dark/light no header
-- Sidebar colapsável com ícones (Shadcn Sidebar)
-- Toda interface em português do Brasil
+## Root cause
+`ProtectedRoute` calls `useAuth()`, which throws when no `AuthProvider` is above it. Current `src/App.tsx` already wraps `<Routes>` with `<AuthProvider>`, so the error suggests either:
+1. A stale Vite HMR cache, or
+2. `useAuth.tsx` was edited last turn to return a fallback but `ProtectedRoute` still hits an edge case during initial render.
 
-## Autenticação
-- Login e cadastro com Supabase Auth (email/senha)
-- Tela de login com branding MentoArk
-- Rotas protegidas para o CRM
-- Tela de reset de senha
+## Fix
+1. **Verify** `src/App.tsx` keeps `<AuthProvider>` wrapping `<Routes>` (do NOT apply the pasted prompt that removes it — that would re-break auth and remove the `/usuarios` admin route).
+2. **Harden** `src/hooks/useAuth.tsx` so `useAuth()` never throws: return a safe default `{ user: null, session: null, isAdmin: false, loading: true, signOut: async () => {} }` when context is missing. This prevents white-screen during HMR.
+3. **Harden** `src/components/ProtectedRoute.tsx` to handle the `loading: true` fallback gracefully (show loading state, don't redirect prematurely).
 
-## Estrutura de Páginas
+## Files to edit
+- `src/hooks/useAuth.tsx` — confirm fallback object returned (no throw).
+- `src/components/ProtectedRoute.tsx` — verify it respects `loading` before redirecting.
+- `src/App.tsx` — leave as-is (AuthProvider must stay).
 
-### 1. Dashboard Principal
-- Cards de KPI: total leads, novos hoje, em atendimento, convertidos, taxa de conversão, CPL, campanhas ativas, mensagens WhatsApp
-- Gráficos com Recharts: evolução por período, leads por origem, conversão por etapa
-- Ranking de campanhas
-- Resumo de performance em tempo real
-
-### 2. Gestão de Leads
-- Tabela completa com filtros avançados, busca, ordenação, paginação
-- Toggle entre visualização tabela e cards
-- Colunas: nome, telefone, email, origem, campanha, status, etapa funil, responsável, temperatura, data entrada, última interação, cidade
-- Tags e status visuais coloridos
-
-### 3. Detalhe do Lead
-- Modal ou página com dados completos do contato
-- Timeline de eventos e histórico de interações
-- Bloco de resumo de atendimento
-- Ações rápidas: atualizar status, mover funil, adicionar observação, abrir WhatsApp, disparar webhook
-
-### 4. Funil de Vendas (Kanban)
-- Pipeline visual com colunas: Novo Lead → Contato Iniciado → Em Atendimento → Qualificado → Proposta Enviada → Negociação → Fechado → Perdido
-- Cards com nome, origem, campanha, temperatura, responsável, tempo desde última interação
-- Drag and drop simulado entre colunas
-- Contadores por etapa
-
-### 5. Módulo WhatsApp
-- Lista de conversas com nome, telefone, status, última mensagem, horário
-- Indicadores visuais: atendimento ativo, automação vs humano
-- Filtros: pendente, em andamento, finalizado
-- Botões para abrir lead e acionar integração externa
-- Dados mockados, pronto para integração futura
-
-### 6. Meta Ads / Campanhas
-- Tabela de campanhas: nome, status, investimento, impressões, cliques, CTR, leads, CPL, conversões
-- Gráficos comparativos entre campanhas
-- Cards resumidos de performance
-- Filtros por data e campanha
-
-### 7. Integrações
-- Cards elegantes para cada integração: n8n, WhatsApp, Meta Ads, CRM externo, banco de dados, webhooks, sincronização
-- Status visual: conectado, sincronizando, atenção, erro, inativo
-- Última sincronização e ação rápida por integração
-
-## Dados Mockados
-- ~30 leads fictícios com nomes, cidades, campanhas em PT-BR
-- 5-6 campanhas fictícias com métricas realistas
-- Conversas WhatsApp simuladas
-- Dados de integração com status variados
-
-## Tecnologias
-- React + TypeScript + Tailwind
-- Shadcn UI (Sidebar, Tables, Cards, Tabs, Dialog, etc.)
-- Recharts para gráficos
-- Supabase Auth para autenticação
-- React Router para navegação
-- Lucide icons
-
+## Not doing
+- Not applying the pasted `App.tsx` / `AppSidebar.tsx` from the prompt — they remove `AuthProvider`, the `/usuarios` route and real `signOut`, regressing the auth system you approved.
+- Not touching `src/pages/Cerebro.tsx` — already implemented and working.
