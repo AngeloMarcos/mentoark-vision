@@ -1,151 +1,688 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
-import { mockLeads, etapaLabel, type Lead, type LeadStatus } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, LayoutGrid, List, Phone, Mail, MapPin, ThermometerSun, Eye } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { LeadDetail } from "@/components/LeadDetail";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Search, Plus, Upload, Trash2, FolderPlus, Phone, Mail, Building2, Loader2, Pencil,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-const tempColor: Record<string, string> = {
-  quente: "bg-destructive/15 text-destructive",
-  morno: "bg-warning/15 text-warning",
-  frio: "bg-info/15 text-info",
-};
+interface Lista {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  cor: string | null;
+}
+
+interface Contato {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  email: string | null;
+  empresa: string | null;
+  cargo: string | null;
+  origem: string | null;
+  status: string;
+  tags: string[] | null;
+  notas: string | null;
+  lista_id: string | null;
+  created_at: string;
+}
+
+const statusOptions = [
+  { value: "novo", label: "Novo" },
+  { value: "contatado", label: "Contatado" },
+  { value: "qualificado", label: "Qualificado" },
+  { value: "agendado", label: "Agendado" },
+  { value: "fechado", label: "Fechado" },
+  { value: "perdido", label: "Perdido" },
+];
 
 const statusColor: Record<string, string> = {
   novo: "bg-info/15 text-info",
   contatado: "bg-primary/15 text-primary",
-  em_atendimento: "bg-warning/15 text-warning",
   qualificado: "bg-success/15 text-success",
-  proposta: "bg-accent/15 text-accent",
-  negociacao: "bg-primary/15 text-primary",
+  agendado: "bg-warning/15 text-warning",
   fechado: "bg-success/15 text-success",
   perdido: "bg-destructive/15 text-destructive",
 };
 
 export default function LeadsPage() {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("todos");
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  const filtered = mockLeads.filter((l) => {
-    const matchSearch = l.nome.toLowerCase().includes(search.toLowerCase()) ||
-      l.telefone.includes(search) || l.origem.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "todos" || l.status === statusFilter;
-    return matchSearch && matchStatus;
+  const [loading, setLoading] = useState(true);
+  const [listas, setListas] = useState<Lista[]>([]);
+  const [contatos, setContatos] = useState<Contato[]>([]);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [listaFiltro, setListaFiltro] = useState<string>("todas");
+
+  // Modais
+  const [modalLista, setModalLista] = useState(false);
+  const [modalImport, setModalImport] = useState(false);
+  const [modalContato, setModalContato] = useState(false);
+  const [editing, setEditing] = useState<Contato | null>(null);
+
+  // Form lista
+  const [novaLista, setNovaLista] = useState({ nome: "", descricao: "" });
+
+  // Form contato
+  const [contatoForm, setContatoForm] = useState({
+    nome: "", telefone: "", email: "", empresa: "", cargo: "",
+    origem: "Manual", status: "novo", tags: "", notas: "", lista_id: "",
+  });
+
+  // Importação
+  const [csvTexto, setCsvTexto] = useState("");
+  const [importLista, setImportLista] = useState<string>("");
+
+  // ============ CARREGAR DADOS ============
+  const carregar = async () => {
+    if (!user) return;
+    setLoading(true);
+    const [{ data: l }, { data: c }] = await Promise.all([
+      supabase.from("listas").select("*").order("created_at", { ascending: false }),
+      supabase.from("contatos").select("*").order("created_at", { ascending: false }),
+    ]);
+    setListas(l ?? []);
+    setContatos(c ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { carregar(); }, [user?.id]);
+
+  // ============ LISTA ============
+  const criarLista = async () => {
+    if (!novaLista.nome.trim() || !user) return;
+    const { error } = await supabase.from("listas").insert({
+      user_id: user.id,
+      nome: novaLista.nome.trim(),
+      descricao: novaLista.descricao.trim() || null,
+    });
+    if (error) {
+      toast({ title: "Erro ao criar lista", description: error.message, variant: "destructive" });
+      return;
+    }
+    setNovaLista({ nome: "", descricao: "" });
+    setModalLista(false);
+    toast({ title: "✅ Lista criada!" });
+    carregar();
+  };
+
+  const removerLista = async (id: string) => {
+    if (!confirm("Remover esta lista? Os contatos ficarão sem lista mas não serão apagados.")) return;
+    const { error } = await supabase.from("listas").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (listaFiltro === id) setListaFiltro("todas");
+    carregar();
+  };
+
+  // ============ CONTATO CRUD ============
+  const abrirNovo = () => {
+    setEditing(null);
+    setContatoForm({
+      nome: "", telefone: "", email: "", empresa: "", cargo: "",
+      origem: "Manual", status: "novo", tags: "", notas: "",
+      lista_id: listaFiltro !== "todas" ? listaFiltro : (listas[0]?.id ?? ""),
+    });
+    setModalContato(true);
+  };
+
+  const abrirEdicao = (c: Contato) => {
+    setEditing(c);
+    setContatoForm({
+      nome: c.nome,
+      telefone: c.telefone ?? "",
+      email: c.email ?? "",
+      empresa: c.empresa ?? "",
+      cargo: c.cargo ?? "",
+      origem: c.origem ?? "Manual",
+      status: c.status,
+      tags: (c.tags ?? []).join(", "),
+      notas: c.notas ?? "",
+      lista_id: c.lista_id ?? "",
+    });
+    setModalContato(true);
+  };
+
+  const salvarContato = async () => {
+    if (!contatoForm.nome.trim() || !user) return;
+    const payload = {
+      nome: contatoForm.nome.trim(),
+      telefone: contatoForm.telefone.trim() || null,
+      email: contatoForm.email.trim() || null,
+      empresa: contatoForm.empresa.trim() || null,
+      cargo: contatoForm.cargo.trim() || null,
+      origem: contatoForm.origem.trim() || "Manual",
+      status: contatoForm.status,
+      tags: contatoForm.tags ? contatoForm.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+      notas: contatoForm.notas.trim() || null,
+      lista_id: contatoForm.lista_id || null,
+    };
+    const { error } = editing
+      ? await supabase.from("contatos").update(payload).eq("id", editing.id)
+      : await supabase.from("contatos").insert({ ...payload, user_id: user.id });
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      return;
+    }
+    setModalContato(false);
+    toast({ title: editing ? "✅ Contato atualizado!" : "✅ Contato criado!" });
+    carregar();
+  };
+
+  const removerContato = async (id: string) => {
+    if (!confirm("Remover este contato?")) return;
+    const { error } = await supabase.from("contatos").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+    carregar();
+  };
+
+  // ============ IMPORTAÇÃO CSV ============
+  // Parser CSV com suporte a campos com vírgulas dentro de aspas
+  const parseCsvLine = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes) {
+        out.push(cur); cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+
+  const importarCSV = async () => {
+    if (!user) return;
+    const linhas = csvTexto.trim().split(/\r?\n/);
+    if (linhas.length < 2) {
+      toast({ title: "CSV inválido", description: "Cole o cabeçalho + ao menos 1 linha de dados.", variant: "destructive" });
+      return;
+    }
+    const headers = parseCsvLine(linhas[0]).map((h) => h.replace(/"/g, "").trim());
+
+    // Detectar formato Cnpj.biz
+    const isCnpjBiz =
+      headers.includes("Nome da empresa") ||
+      headers.includes("CNPJ ou CPF da empresa") ||
+      headers.includes("Categoria da empresa") ||
+      headers.includes("Nome fantasia da empresa");
+
+    const listaAlvo = importLista || (listaFiltro !== "todas" ? listaFiltro : (listas[0]?.id ?? null));
+
+    const novos: Array<Omit<Contato, "id" | "created_at">> = [];
+
+    for (let i = 1; i < linhas.length; i++) {
+      if (!linhas[i].trim()) continue;
+      const cols = parseCsvLine(linhas[i]).map((c) => c.replace(/^"|"$/g, "").trim());
+      const get = (key: string) => {
+        const idx = headers.indexOf(key);
+        return idx >= 0 && cols[idx] ? cols[idx] : "";
+      };
+
+      if (isCnpjBiz) {
+        // === Modo Cnpj.biz ===
+        const empresa = get("Nome fantasia da empresa") || get("Nome da empresa");
+        const nomeContato = get("Nome do contato 1") || empresa;
+        const telBruto = get("Telefones da empresa");
+        const telefone = telBruto ? telBruto.split(/[,;]/)[0].trim() : "";
+        const email = (get("E-mails da empresa") || "").split(/[,;]/)[0].trim();
+        const cargo = get("Cargo / função do contato 1") || get("Cargo / funcao do contato 1");
+        const segmento = get("Categoria da empresa");
+        const porte = get("Porte da empresa");
+        const cnpj = get("CNPJ ou CPF da empresa");
+        const razao = get("Razão social da empresa") || get("Razao social da empresa");
+        const dataAbertura = get("Data de abertura da empresa");
+        const contato2 = get("Nome do contato 2");
+        const cargo2 = get("Cargo / função do contato 2") || get("Cargo / funcao do contato 2");
+
+        const tagsAuto: string[] = [];
+        const seg = segmento.toLowerCase();
+        if (seg.includes("odontol")) tagsAuto.push("Odontologia");
+        else if (seg.includes("psicol") || seg.includes("psicanal")) tagsAuto.push("Psicologia");
+        else if (seg.includes("fisioter")) tagsAuto.push("Fisioterapia");
+        else if (seg.includes("médic") || seg.includes("medic")) tagsAuto.push("Médico");
+        else if (seg.includes("comércio") || seg.includes("comerc")) tagsAuto.push("Comércio");
+        if (porte) tagsAuto.push(porte);
+        tagsAuto.push("Cnpj.biz");
+
+        let notas = `CNPJ: ${cnpj} | Razão: ${razao} | Abertura: ${dataAbertura} | Segmento: ${segmento}`;
+        if (contato2) notas += ` | Contato 2: ${contato2}${cargo2 ? ` (${cargo2})` : ""}`;
+
+        if (!nomeContato) continue;
+
+        novos.push({
+          nome: nomeContato,
+          telefone,
+          email,
+          empresa,
+          cargo,
+          origem: "Cnpj.biz",
+          status: "novo",
+          tags: tagsAuto,
+          notas,
+          lista_id: listaAlvo,
+        });
+      } else {
+        // === Modo CSV simples ===
+        const nome = get("nome") || get("Nome");
+        if (!nome) continue;
+        novos.push({
+          nome,
+          telefone: get("telefone") || get("Telefone"),
+          email: get("email") || get("Email"),
+          empresa: get("empresa") || get("Empresa"),
+          cargo: get("cargo") || get("Cargo"),
+          origem: get("origem") || get("Origem") || "Manual",
+          status: get("status") || get("Status") || "novo",
+          tags: (get("tags") || get("Tags")) ? (get("tags") || get("Tags")).split(/[;,]/).map((t) => t.trim()).filter(Boolean) : [],
+          notas: get("notas") || get("Notas"),
+          lista_id: listaAlvo,
+        });
+      }
+    }
+
+    if (!novos.length) {
+      toast({ title: "Nenhum contato válido encontrado", variant: "destructive" });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("contatos")
+      .insert(novos.map((n) => ({ ...n, user_id: user.id })));
+
+    if (error) {
+      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setModalImport(false);
+    setCsvTexto("");
+    setImportLista("");
+    toast({
+      title: `✅ ${novos.length} contatos importados!`,
+      description: isCnpjBiz ? "Formato Cnpj.biz detectado automaticamente." : "Formato CSV padrão importado.",
+    });
+    carregar();
+  };
+
+  // ============ FILTROS ============
+  const filtered = contatos.filter((c) => {
+    const s = search.toLowerCase();
+    const matchSearch = !s ||
+      c.nome.toLowerCase().includes(s) ||
+      (c.telefone ?? "").toLowerCase().includes(s) ||
+      (c.email ?? "").toLowerCase().includes(s) ||
+      (c.empresa ?? "").toLowerCase().includes(s);
+    const matchStatus = statusFilter === "todos" || c.status === statusFilter;
+    const matchLista = listaFiltro === "todas" || c.lista_id === listaFiltro;
+    return matchSearch && matchStatus && matchLista;
   });
 
   return (
     <CRMLayout>
       <div className="space-y-4">
+        {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
-            <p className="text-muted-foreground text-sm">{filtered.length} leads encontrados</p>
+            <h1 className="text-2xl font-bold tracking-tight">Leads & Contatos</h1>
+            <p className="text-muted-foreground text-sm">
+              {filtered.length} de {contatos.length} contato(s)
+              {listas.length > 0 && ` • ${listas.length} lista(s)`}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant={viewMode === "table" ? "default" : "outline"} size="icon" onClick={() => setViewMode("table")}><List className="h-4 w-4" /></Button>
-            <Button variant={viewMode === "cards" ? "default" : "outline"} size="icon" onClick={() => setViewMode("cards")}><LayoutGrid className="h-4 w-4" /></Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setModalLista(true)}>
+              <FolderPlus className="h-4 w-4 mr-1" /> Nova Lista
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setImportLista(""); setModalImport(true); }}>
+              <Upload className="h-4 w-4 mr-1" /> Importar CSV
+            </Button>
+            <Button size="sm" onClick={abrirNovo}>
+              <Plus className="h-4 w-4 mr-1" /> Novo Contato
+            </Button>
           </div>
         </div>
 
+        {/* Filtros */}
         <div className="flex gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar por nome, telefone ou origem..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input
+              placeholder="Buscar por nome, telefone, e-mail ou empresa..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <Select value={listaFiltro} onValueChange={setListaFiltro}>
+            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos os status</SelectItem>
-              {(Object.keys(etapaLabel) as LeadStatus[]).map((s) => (
-                <SelectItem key={s} value={s}>{etapaLabel[s]}</SelectItem>
+              <SelectItem value="todas">Todas as listas</SelectItem>
+              {listas.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos status</SelectItem>
+              {statusOptions.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {viewMode === "table" ? (
-          <Card>
-            <CardContent className="p-0">
+        {/* Tags rápidas das listas */}
+        {listas.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {listas.map((l) => {
+              const ativo = listaFiltro === l.id;
+              const count = contatos.filter((c) => c.lista_id === l.id).length;
+              return (
+                <Badge
+                  key={l.id}
+                  variant={ativo ? "default" : "outline"}
+                  className="cursor-pointer gap-2 py-1 pr-1"
+                  onClick={() => setListaFiltro(ativo ? "todas" : l.id)}
+                >
+                  {l.nome} <span className="opacity-70">({count})</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removerLista(l.id); }}
+                    className="ml-1 rounded hover:bg-destructive/20 p-0.5"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Tabela */}
+        <Card>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" /> Carregando...
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">Nenhum contato encontrado</p>
+                <p className="text-sm mt-1">Importe um CSV ou adicione manualmente seu primeiro contato.</p>
+              </div>
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
+                    <TableHead>Nome / Empresa</TableHead>
+                    <TableHead>Contato</TableHead>
                     <TableHead>Origem</TableHead>
-                    <TableHead>Campanha</TableHead>
-                    <TableHead>Etapa</TableHead>
-                    <TableHead>Temp.</TableHead>
-                    <TableHead>Responsável</TableHead>
-                    <TableHead>Última Interação</TableHead>
-                    <TableHead></TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Tags</TableHead>
+                    <TableHead className="w-[100px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((lead) => (
-                    <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedLead(lead)}>
+                  {filtered.map((c) => (
+                    <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => abrirEdicao(c)}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{lead.nome}</p>
-                          <p className="text-xs text-muted-foreground">{lead.telefone}</p>
+                        <p className="font-medium">{c.nome}</p>
+                        {c.empresa && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Building2 className="h-3 w-3" />{c.empresa}
+                            {c.cargo && ` • ${c.cargo}`}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {c.telefone && (
+                          <p className="text-xs flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-muted-foreground" />{c.telefone}
+                          </p>
+                        )}
+                        {c.email && (
+                          <p className="text-xs flex items-center gap-1 text-muted-foreground">
+                            <Mail className="h-3 w-3" />{c.email}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{c.origem ?? "Manual"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`${statusColor[c.status] ?? "bg-muted"} text-xs border-0`}>
+                          {statusOptions.find((s) => s.value === c.status)?.label ?? c.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 flex-wrap">
+                          {(c.tags ?? []).slice(0, 3).map((t) => (
+                            <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                          ))}
+                          {(c.tags?.length ?? 0) > 3 && (
+                            <Badge variant="secondary" className="text-xs">+{(c.tags?.length ?? 0) - 3}</Badge>
+                          )}
                         </div>
                       </TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{lead.origem}</Badge></TableCell>
-                      <TableCell className="text-sm">{lead.campanha}</TableCell>
-                      <TableCell><Badge className={`${statusColor[lead.status]} text-xs border-0`}>{lead.etapa_funil}</Badge></TableCell>
-                      <TableCell><Badge className={`${tempColor[lead.temperatura]} text-xs border-0`}>{lead.temperatura}</Badge></TableCell>
-                      <TableCell className="text-sm">{lead.responsavel}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(lead.ultima_interacao).toLocaleDateString("pt-BR")}</TableCell>
-                      <TableCell><Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button></TableCell>
+                      <TableCell>
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => abrirEdicao(c)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removerContato(c.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((lead) => (
-              <Card key={lead.id} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => setSelectedLead(lead)}>
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold">{lead.nome}</p>
-                      <p className="text-xs text-muted-foreground">{lead.cidade}</p>
-                    </div>
-                    <Badge className={`${tempColor[lead.temperatura]} text-xs border-0`}>{lead.temperatura}</Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge className={`${statusColor[lead.status]} text-xs border-0`}>{lead.etapa_funil}</Badge>
-                    <Badge variant="outline" className="text-xs">{lead.origem}</Badge>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{lead.telefone}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{lead.responsavel}</span>
-                    <span>{new Date(lead.ultima_interacao).toLocaleDateString("pt-BR")}</span>
-                  </div>
-                  <div className="flex gap-1">
-                    {lead.tags.map((t) => (
-                      <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
-        <Dialog open={!!selectedLead} onOpenChange={() => setSelectedLead(null)}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-            {selectedLead && <LeadDetail lead={selectedLead} />}
+        {/* ============ MODAL: Nova Lista ============ */}
+        <Dialog open={modalLista} onOpenChange={setModalLista}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nova Lista</DialogTitle>
+              <DialogDescription>Organize seus contatos por categoria, campanha ou nicho.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label>Nome da lista</Label>
+                <Input
+                  value={novaLista.nome}
+                  onChange={(e) => setNovaLista({ ...novaLista, nome: e.target.value })}
+                  placeholder="Ex: Odontologistas SP"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Descrição (opcional)</Label>
+                <Input
+                  value={novaLista.descricao}
+                  onChange={(e) => setNovaLista({ ...novaLista, descricao: e.target.value })}
+                  placeholder="Ex: Prospecção janeiro 2026"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setModalLista(false)}>Cancelar</Button>
+              <Button onClick={criarLista}>Criar lista</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============ MODAL: Importar CSV ============ */}
+        <Dialog open={modalImport} onOpenChange={setModalImport}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Importar contatos via CSV</DialogTitle>
+              <DialogDescription>
+                Cole o conteúdo do CSV abaixo. O sistema detecta automaticamente se é o formato do <strong>Cnpj.biz</strong> ou um CSV padrão.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Tabs defaultValue="cnpjbiz" className="w-full">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="cnpjbiz">📋 Cnpj.biz (auto)</TabsTrigger>
+                <TabsTrigger value="simples">CSV simples</TabsTrigger>
+              </TabsList>
+              <TabsContent value="cnpjbiz" className="space-y-2 pt-3">
+                <p className="text-xs text-muted-foreground">
+                  Exporte do Cnpj.biz e cole o conteúdo completo. Mapeamos: empresa, contato 1, telefone, e-mail, cargo, CNPJ, razão social, segmento (vira tag) e porte.
+                </p>
+              </TabsContent>
+              <TabsContent value="simples" className="space-y-2 pt-3">
+                <p className="text-xs text-muted-foreground">
+                  Cabeçalhos esperados: <code>nome, telefone, email, empresa, cargo, origem, status, tags, notas</code>. Tags separadas por <code>;</code>
+                </p>
+              </TabsContent>
+            </Tabs>
+
+            <div className="space-y-3 py-1">
+              <div className="space-y-1.5">
+                <Label>Lista de destino</Label>
+                <Select value={importLista} onValueChange={setImportLista}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={listas.length ? "Selecione uma lista" : "Crie uma lista primeiro"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {listas.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Conteúdo do CSV</Label>
+                <Textarea
+                  value={csvTexto}
+                  onChange={(e) => setCsvTexto(e.target.value)}
+                  placeholder="Cole aqui o CSV completo (incluindo a primeira linha com os nomes das colunas)..."
+                  rows={12}
+                  className="font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setModalImport(false)}>Cancelar</Button>
+              <Button onClick={importarCSV} disabled={!csvTexto.trim()}>
+                <Upload className="h-4 w-4 mr-1" /> Importar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ============ MODAL: Novo / Editar Contato ============ */}
+        <Dialog open={modalContato} onOpenChange={setModalContato}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Editar contato" : "Novo contato"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Nome *</Label>
+                  <Input value={contatoForm.nome} onChange={(e) => setContatoForm({ ...contatoForm, nome: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Telefone</Label>
+                  <Input value={contatoForm.telefone} onChange={(e) => setContatoForm({ ...contatoForm, telefone: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>E-mail</Label>
+                  <Input value={contatoForm.email} onChange={(e) => setContatoForm({ ...contatoForm, email: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Empresa</Label>
+                  <Input value={contatoForm.empresa} onChange={(e) => setContatoForm({ ...contatoForm, empresa: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Cargo</Label>
+                  <Input value={contatoForm.cargo} onChange={(e) => setContatoForm({ ...contatoForm, cargo: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Origem</Label>
+                  <Input value={contatoForm.origem} onChange={(e) => setContatoForm({ ...contatoForm, origem: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select value={contatoForm.status} onValueChange={(v) => setContatoForm({ ...contatoForm, status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Lista</Label>
+                  <Select value={contatoForm.lista_id} onValueChange={(v) => setContatoForm({ ...contatoForm, lista_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Sem lista" /></SelectTrigger>
+                    <SelectContent>
+                      {listas.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tags (separadas por vírgula)</Label>
+                <Input value={contatoForm.tags} onChange={(e) => setContatoForm({ ...contatoForm, tags: e.target.value })} placeholder="Ex: VIP, Urgente, Indicação" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Notas</Label>
+                <Textarea value={contatoForm.notas} onChange={(e) => setContatoForm({ ...contatoForm, notas: e.target.value })} rows={4} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setModalContato(false)}>Cancelar</Button>
+              <Button onClick={salvarContato} disabled={!contatoForm.nome.trim()}>
+                {editing ? "Salvar alterações" : "Criar contato"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

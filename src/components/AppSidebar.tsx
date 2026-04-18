@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Users, Kanban, MessageCircle, Megaphone, Plug, LogOut, ChevronLeft, Brain, ShieldCheck,
+  LayoutDashboard, Users, Kanban, MessageCircle, Megaphone, Plug, LogOut, ChevronLeft, Brain, ShieldCheck, PhoneCall,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { NavLink } from "@/components/NavLink";
@@ -12,6 +12,7 @@ import {
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Leads", url: "/leads", icon: Users },
+  { title: "Discagem", url: "/discagem", icon: PhoneCall },
   { title: "Funil de Vendas", url: "/funil", icon: Kanban },
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Campanhas", url: "/campanhas", icon: Megaphone },
