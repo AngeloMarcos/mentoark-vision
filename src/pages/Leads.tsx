@@ -608,12 +608,40 @@ export default function LeadsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
-              <p className="font-semibold">Formato esperado</p>
-              <p className="text-muted-foreground">
-                Cabeçalhos: <code>nome, telefone, email, empresa, cargo, origem, status, tags, notas</code>.
-                A coluna <code>nome</code> é obrigatória. Tags separadas por <code>;</code>
-              </p>
+            <div className="bg-muted rounded-lg p-4 text-xs space-y-3">
+              <p className="font-semibold text-sm">📂 Formatos aceitos automaticamente</p>
+
+              <div className="space-y-1">
+                <p className="font-medium text-primary">1. Exportação do Cnpj.biz</p>
+                <p className="text-muted-foreground">
+                  CSV com colunas como "Nome da empresa", "CNPJ ou CPF da empresa", "Categoria da empresa".
+                  O sistema detecta e mapeia tudo automaticamente, incluindo segmento, porte e sócio.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-medium text-primary">2. Exportação do próprio CRM (MentoArk)</p>
+                <p className="text-muted-foreground">
+                  CSV com colunas: nome, telefone, email, empresa, cargo, origem, status, tags, notas.
+                  Tags separadas por ponto e vírgula (;).
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-medium text-primary">3. CSV genérico de qualquer sistema</p>
+                <p className="text-muted-foreground">
+                  O sistema tenta identificar automaticamente os campos por nome da coluna
+                  (aceita variações como "fone", "celular", "company", "e-mail" etc.).
+                </p>
+              </div>
+
+              <div className="border-t border-border pt-2 space-y-1">
+                <p className="font-medium">⚠️ Requisitos do arquivo</p>
+                <p className="text-muted-foreground">• Primeira linha deve ser o cabeçalho (nomes das colunas)</p>
+                <p className="text-muted-foreground">• Separador: vírgula (,) — campos com vírgula devem estar entre aspas</p>
+                <p className="text-muted-foreground">• Codificação: UTF-8 (com ou sem BOM)</p>
+                <p className="text-muted-foreground">• Cada contato precisa ter ao menos nome ou telefone preenchido</p>
+              </div>
             </div>
 
             <div className="space-y-3 py-1">
