@@ -514,6 +514,9 @@ export default function CerebroPage() {
             <Button variant="outline" onClick={carregar} size="lg" disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Atualizar
             </Button>
+            <Button onClick={sincronizarRAG} size="lg" disabled={sincronizando}>
+              {sincronizando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sincronizar RAG
+            </Button>
             <Button onClick={() => exportCSV(itens)} size="lg" disabled={itens.length === 0}>
               <Download className="h-4 w-4" /> Exportar CSV
             </Button>
