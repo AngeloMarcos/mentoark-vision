@@ -1,0 +1,29 @@
+import { memo } from "react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Brain } from "lucide-react";
+import { NodeActionBar } from "./NodeActionBar";
+
+export const AINode = memo(({ data, selected, id }: NodeProps) => {
+  const d = data as any;
+  return (
+    <div
+      className={`group relative rounded-xl border-2 px-4 py-3 min-w-[180px] bg-card shadow-sm transition-colors ${
+        selected ? "border-violet-500" : "border-violet-500/50"
+      }`}
+    >
+      <NodeActionBar nodeId={id} />
+      <Handle type="target" position={Position.Left} className="!bg-violet-500" />
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-violet-500/20 text-violet-500 flex items-center justify-center">
+          <Brain className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{d.label || "Agente IA"}</p>
+          <p className="text-xs text-muted-foreground truncate">{d.model || "gpt-4o-mini"}</p>
+        </div>
+      </div>
+      <Handle type="source" position={Position.Right} className="!bg-violet-500" />
+    </div>
+  );
+});
+AINode.displayName = "AINode";
