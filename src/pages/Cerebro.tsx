@@ -583,6 +583,9 @@ export default function CerebroPage() {
             <TabsContent value="config" className="mt-4">
               <Configuracoes />
             </TabsContent>
+            <TabsContent value="gerador" className="mt-4">
+              <GeradorPrompt />
+            </TabsContent>
           </Tabs>
         )}
       </div>
