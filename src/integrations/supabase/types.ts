@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_prompts: {
+        Row: {
+          ativo: boolean
+          conteudo: string
+          created_at: string
+          created_by: string | null
+          id: number
+          nome: string
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          conteudo: string
+          created_at?: string
+          created_by?: string | null
+          id?: number
+          nome: string
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean
+          conteudo?: string
+          created_at?: string
+          created_by?: string | null
+          id?: number
+          nome?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chamadas: {
         Row: {
           contato_id: string
