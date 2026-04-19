@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Users, Kanban, MessageCircle, Megaphone, Plug, LogOut, ChevronLeft, Brain, ShieldCheck, PhoneCall,
+  LayoutDashboard, Users, Kanban, MessageCircle, Megaphone, Plug, LogOut, ChevronLeft, Brain, ShieldCheck, PhoneCall, Bot,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/mentoark-logo.png";
@@ -18,6 +18,7 @@ const items = [
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Campanhas", url: "/campanhas", icon: Megaphone },
   { title: "Integrações", url: "/integracoes", icon: Plug },
+  { title: "Agentes", url: "/agentes", icon: Bot },
   { title: "Cérebro do Agente", url: "/cerebro", icon: Brain },
 ];
 
