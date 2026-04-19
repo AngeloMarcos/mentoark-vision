@@ -15,6 +15,7 @@ import WhatsAppPage from "./pages/WhatsApp";
 import CampanhasPage from "./pages/Campanhas";
 import IntegracoesPage from "./pages/Integracoes";
 import CerebroPage from "./pages/Cerebro";
+import AgentesPage from "./pages/Agentes";
 import UsuariosPage from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/campanhas" element={<ProtectedRoute><CampanhasPage /></ProtectedRoute>} />
               <Route path="/integracoes" element={<ProtectedRoute><IntegracoesPage /></ProtectedRoute>} />
               <Route path="/cerebro" element={<ProtectedRoute><CerebroPage /></ProtectedRoute>} />
+              <Route path="/agentes" element={<ProtectedRoute><AgentesPage /></ProtectedRoute>} />
               <Route path="/usuarios" element={<ProtectedRoute requireAdmin><UsuariosPage /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
