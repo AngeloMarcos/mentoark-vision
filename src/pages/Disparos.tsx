@@ -884,10 +884,20 @@ export default function DisparosPage() {
                   </div>
 
                   {activeDisparo.status === "em_andamento" && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription className="text-xs">Mantenha esta aba aberta durante o disparo.</AlertDescription>
-                    </Alert>
+                    <>
+                      {proximoEnvio > 0 && (
+                        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Próximo envio em</span>
+                          <span className="font-mono text-lg font-semibold text-primary tabular-nums">
+                            {Math.floor(proximoEnvio / 60)}:{String(proximoEnvio % 60).padStart(2, "0")}
+                          </span>
+                        </div>
+                      )}
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">Mantenha esta aba aberta durante o disparo.</AlertDescription>
+                      </Alert>
+                    </>
                   )}
 
                   <div className="flex gap-2">
