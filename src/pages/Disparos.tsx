@@ -145,6 +145,7 @@ export default function DisparosPage() {
   const [logFilter, setLogFilter] = useState<string>("todos");
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   // Refs do motor de execução (1 disparo ativo por vez)
   const lockRef = useRef(false);                            // trava reentrância
