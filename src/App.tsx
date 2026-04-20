@@ -12,6 +12,7 @@ import LeadsPage from "./pages/Leads";
 import DiscagemPage from "./pages/Discagem";
 import FunilPage from "./pages/Funil";
 import WhatsAppPage from "./pages/WhatsApp";
+import DisparosPage from "./pages/Disparos";
 import CampanhasPage from "./pages/Campanhas";
 import IntegracoesPage from "./pages/Integracoes";
 import CerebroPage from "./pages/Cerebro";
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/discagem" element={<ProtectedRoute><DiscagemPage /></ProtectedRoute>} />
               <Route path="/funil" element={<ProtectedRoute><FunilPage /></ProtectedRoute>} />
               <Route path="/whatsapp" element={<ProtectedRoute><WhatsAppPage /></ProtectedRoute>} />
+              <Route path="/disparos" element={<ProtectedRoute><DisparosPage /></ProtectedRoute>} />
               <Route path="/campanhas" element={<ProtectedRoute><CampanhasPage /></ProtectedRoute>} />
               <Route path="/integracoes" element={<ProtectedRoute><IntegracoesPage /></ProtectedRoute>} />
               <Route path="/cerebro" element={<ProtectedRoute><CerebroPage /></ProtectedRoute>} />
