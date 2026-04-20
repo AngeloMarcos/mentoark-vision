@@ -29,8 +29,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Send, Play, Pause, Trash2, Copy, FileText, RefreshCw, AlertCircle,
-  Upload, ChevronDown, Plus, X, Settings2, Link2, CheckCircle2, XCircle, Activity,
+  Send, Play, Pause, Square, Trash2, Copy, FileText, RefreshCw, AlertCircle, AlertTriangle,
+  Upload, ChevronDown, Plus, X, Settings2, Link2, CheckCircle2, XCircle, Activity, Clock, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -145,6 +145,7 @@ export default function DisparosPage() {
   const [logFilter, setLogFilter] = useState<string>("todos");
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   // Refs do motor de execução (1 disparo ativo por vez)
   const lockRef = useRef(false);                            // trava reentrância
@@ -428,7 +429,7 @@ export default function DisparosPage() {
   const refreshActive = async (id: string) => {
     const [{ data: dsp }, { data: lgs }] = await Promise.all([
       supabase.from("disparos").select("*").eq("id", id).single(),
-      supabase.from("disparo_logs").select("*").eq("disparo_id", id).order("created_at", { ascending: false }).limit(20),
+      supabase.from("disparo_logs").select("*").eq("disparo_id", id).order("created_at", { ascending: true }),
     ]);
     if (dsp) setDisparos((arr) => arr.map((x) => (x.id === id ? (dsp as Disparo) : x)));
     setActiveLogs((lgs as DisparoLog[]) ?? []);
@@ -883,57 +884,103 @@ export default function DisparosPage() {
                     </div>
                   </div>
 
-                  {activeDisparo.status === "em_andamento" && (
-                    <>
-                      {proximoEnvio > 0 && (
-                        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Próximo envio em</span>
-                          <span className="font-mono text-lg font-semibold text-primary tabular-nums">
+                  {/* Badge de fase */}
+                  {(() => {
+                    const st = activeDisparo.status;
+                    if (st !== "em_andamento" && st !== "pausado") return null;
+                    let label = "Aguardando intervalo";
+                    let cls = "bg-info/20 text-info border-info/30";
+                    let Icon = Clock;
+                    if (st === "pausado") { label = "Pausado"; cls = "bg-warning/20 text-warning border-warning/30"; Icon = Pause; }
+                    else if (lockRef.current) { label = "Enviando..."; cls = "bg-info/20 text-info border-info/30"; Icon = Send; }
+                    else if (!inWindow(activeDisparo.horario_inicio, activeDisparo.horario_fim)) { label = "Fora do horário"; cls = "bg-warning/20 text-warning border-warning/30"; Icon = AlertTriangle; }
+                    else if (proximoEnvio > 60) { label = "Em pausa anti-bloqueio"; cls = "bg-warning/20 text-warning border-warning/30"; Icon = Pause; }
+                    return (
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-border/60 p-3 bg-muted/20">
+                        <Badge variant="outline" className={cls}>
+                          <Icon className="h-3 w-3 mr-1" /> {label}
+                        </Badge>
+                        {proximoEnvio > 0 && (
+                          <span className="font-mono text-sm font-semibold text-primary tabular-nums">
                             {Math.floor(proximoEnvio / 60)}:{String(proximoEnvio % 60).padStart(2, "0")}
                           </span>
-                        </div>
-                      )}
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription className="text-xs">Mantenha esta aba aberta durante o disparo.</AlertDescription>
-                      </Alert>
-                    </>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {activeDisparo.status === "em_andamento" && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">Mantenha esta aba aberta durante o disparo.</AlertDescription>
+                    </Alert>
                   )}
 
-                  <div className="flex gap-2">
-                    {activeDisparo.status === "em_andamento" && (
-                      <Button size="sm" variant="outline" onClick={() => pausar(activeDisparo)}><Pause className="h-4 w-4" /> Pausar</Button>
-                    )}
-                    {(activeDisparo.status === "pausado" || activeDisparo.status === "rascunho") && (
-                      <Button size="sm" onClick={() => iniciar(activeDisparo)}><Play className="h-4 w-4" /> {activeDisparo.status === "pausado" ? "Retomar" : "Iniciar"}</Button>
-                    )}
-                    {(activeDisparo.status === "em_andamento" || activeDisparo.status === "pausado") && (
-                      <Button size="sm" variant="outline" onClick={() => cancelar(activeDisparo)}>Cancelar</Button>
-                    )}
-                    <Button size="sm" variant="ghost" onClick={() => abrirLogs(activeDisparo)}><FileText className="h-4 w-4" /> Logs completos</Button>
+                  {/* Três botões padronizados */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => iniciar(activeDisparo)}
+                      disabled={activeDisparo.status === "em_andamento" || activeDisparo.status === "concluido" || activeDisparo.status === "cancelado"}
+                      className="bg-success hover:bg-success/90 text-success-foreground"
+                    >
+                      <Play className="h-4 w-4" /> {activeDisparo.status === "pausado" ? "Retomar" : "Iniciar"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => pausar(activeDisparo)}
+                      disabled={activeDisparo.status !== "em_andamento"}
+                      className="border-warning/40 text-warning hover:bg-warning/10 hover:text-warning"
+                    >
+                      <Pause className="h-4 w-4" /> Pausar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConfirmCancelId(activeDisparo.id)}
+                      disabled={activeDisparo.status !== "em_andamento" && activeDisparo.status !== "pausado"}
+                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Square className="h-4 w-4" /> Cancelar
+                    </Button>
                   </div>
 
-                  {/* Stream de últimos eventos */}
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="ghost" onClick={() => abrirLogs(activeDisparo)}>
+                      <FileText className="h-4 w-4" /> Logs completos
+                    </Button>
+                  </div>
+
+                  {/* Tabela completa de leads (scrollável) */}
                   <div className="space-y-2">
-                    <Label className="text-xs">Últimos eventos</Label>
-                    <div className="border border-border/60 rounded-md max-h-72 overflow-auto">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" /> Leads desta campanha ({activeLogs.length})
+                    </Label>
+                    <div className="border border-border/60 rounded-md max-h-96 overflow-y-auto">
                       {activeLogs.length === 0 ? (
-                        <div className="p-4 text-xs text-muted-foreground text-center">Sem eventos ainda</div>
+                        <div className="p-4 text-xs text-muted-foreground text-center">Sem leads ainda</div>
                       ) : (
-                        <div className="divide-y divide-border/40">
-                          {activeLogs.map((l) => (
-                            <div key={l.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {logStatusBadge(l.status)}
-                                <span className="truncate">{l.nome ?? l.telefone}</span>
-                                <span className="font-mono text-muted-foreground hidden sm:inline">{l.telefone}</span>
-                              </div>
-                              <span className="text-muted-foreground whitespace-nowrap">
-                                {l.enviado_at ? new Date(l.enviado_at).toLocaleTimeString("pt-BR") : "—"}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-card z-10">
+                            <TableRow>
+                              <TableHead className="h-9">Nome</TableHead>
+                              <TableHead className="h-9">Telefone</TableHead>
+                              <TableHead className="h-9">Status</TableHead>
+                              <TableHead className="h-9 text-right">Tent.</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {activeLogs.map((l) => (
+                              <TableRow key={l.id}>
+                                <TableCell className="py-2 max-w-[140px] truncate">{l.nome ?? "—"}</TableCell>
+                                <TableCell className="py-2 font-mono text-xs">{l.telefone}</TableCell>
+                                <TableCell className="py-2">{logStatusBadge(l.status)}</TableCell>
+                                <TableCell className="py-2 text-right text-xs">{l.tentativas}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       )}
                     </div>
                   </div>
@@ -1010,6 +1057,29 @@ export default function DisparosPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => confirmDeleteId && excluir(confirmDeleteId)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmCancelId} onOpenChange={(o) => !o && setConfirmCancelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar disparo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os envios pendentes serão interrompidos. Os logs já enviados permanecerão no histórico.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const d = disparos.find((x) => x.id === confirmCancelId);
+                if (d) cancelar(d);
+                setConfirmCancelId(null);
+              }}
+            >
+              Sim, cancelar
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
