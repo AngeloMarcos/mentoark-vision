@@ -1060,6 +1060,29 @@ export default function DisparosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!confirmCancelId} onOpenChange={(o) => !o && setConfirmCancelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar disparo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os envios pendentes serão interrompidos. Os logs já enviados permanecerão no histórico.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const d = disparos.find((x) => x.id === confirmCancelId);
+                if (d) cancelar(d);
+                setConfirmCancelId(null);
+              }}
+            >
+              Sim, cancelar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </CRMLayout>
   );
 }
