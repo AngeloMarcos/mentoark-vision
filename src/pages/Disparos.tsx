@@ -330,67 +330,99 @@ export default function DisparosPage() {
     await supabase.from("disparos").update({ status, ...extras }).eq("id", id);
   };
 
+  // Processa o próximo log pendente do disparo (recursivo via setTimeout)
+  const processarProximo = async (d: Disparo) => {
+    if (lockRef.current) return;
+    if (pauseFlagRef.current.has(d.id)) return;
+    if (!evolution) { toast.error("Evolution API não configurada"); return; }
+
+    // Janela de horário
+    if (!inWindow(d.horario_inicio, d.horario_fim)) {
+      toast.info("Fora da janela de horário — aguardando 1 min");
+      iniciarCountdown(60);
+      timerRef.current = window.setTimeout(() => processarProximo(d), 60_000);
+      return;
+    }
+
+    // Pausa anti-bloqueio (a cada N mensagens)
+    const lote = lotePorDisparoRef.current[d.id] ?? lerEstadoLocal(d.id).lote ?? 0;
+    if (d.pausa_a_cada > 0 && lote >= d.pausa_a_cada) {
+      lotePorDisparoRef.current[d.id] = 0;
+      const ms = d.pausa_duracao * 60_000;
+      salvarEstadoLocal(d.id, { lote: 0, nextAt: Date.now() + ms });
+      toast.info(`⏸️ Pausa anti-bloqueio: ${d.pausa_duracao} min`);
+      iniciarCountdown(ms / 1000);
+      timerRef.current = window.setTimeout(() => processarProximo(d), ms);
+      return;
+    }
+
+    // Próximo pendente
+    const { data: pendings } = await supabase
+      .from("disparo_logs").select("*")
+      .eq("disparo_id", d.id).eq("status", "pending")
+      .order("created_at").limit(1);
+    const log = pendings?.[0] as DisparoLog | undefined;
+    if (!log) {
+      limparTimers();
+      limparEstadoLocal(d.id);
+      await setStatus(d.id, "concluido", { data_fim: new Date().toISOString() });
+      toast.success(`✅ Disparo "${d.nome}" concluído`);
+      carregar(); refreshActive(d.id);
+      return;
+    }
+
+    // Trava + envio
+    lockRef.current = true;
+    await supabase.from("disparo_logs").update({ status: "sending", tentativas: log.tentativas + 1 }).eq("id", log.id);
+    let sucesso = false;
+    let erroMsg: string | null = null;
+    try {
+      await enviarMensagem(evolution, log.telefone, log.mensagem_enviada ?? "");
+      sucesso = true;
+    } catch (err: any) {
+      erroMsg = err?.message ?? "erro";
+    }
+
+    if (sucesso) {
+      await supabase.from("disparo_logs").update({ status: "sent", enviado_at: new Date().toISOString() }).eq("id", log.id);
+      const { data: cur } = await supabase.from("disparos").select("enviados").eq("id", d.id).single();
+      await supabase.from("disparos").update({ enviados: ((cur as any)?.enviados ?? 0) + 1 }).eq("id", d.id);
+    } else {
+      await supabase.from("disparo_logs").update({ status: "failed", erro: erroMsg }).eq("id", log.id);
+      const { data: cur } = await supabase.from("disparos").select("falhas").eq("id", d.id).single();
+      await supabase.from("disparos").update({ falhas: ((cur as any)?.falhas ?? 0) + 1 }).eq("id", d.id);
+    }
+    lockRef.current = false;
+
+    lotePorDisparoRef.current[d.id] = (lotePorDisparoRef.current[d.id] ?? 0) + 1;
+    refreshActive(d.id);
+
+    if (pauseFlagRef.current.has(d.id)) return;
+
+    // Sortear intervalo e agendar próximo
+    const intervalo = Math.floor(Math.random() * (d.intervalo_max - d.intervalo_min + 1)) + d.intervalo_min;
+    const ms = intervalo * 1000;
+    salvarEstadoLocal(d.id, { lote: lotePorDisparoRef.current[d.id] ?? 0, nextAt: Date.now() + ms });
+    iniciarCountdown(intervalo);
+    timerRef.current = window.setTimeout(() => processarProximo(d), ms);
+  };
+
   const iniciar = async (d: Disparo) => {
     if (!user) return;
-    if (runningRef.current.has(d.id)) return;
     if (!evolution) { toast.error("Configure a Evolution API em Integrações"); return; }
 
-    await setStatus(d.id, "em_andamento", { data_inicio: d.data_inicio ?? new Date().toISOString() });
-    runningRef.current.add(d.id);
+    limparTimers();
     pauseFlagRef.current.delete(d.id);
-    setActiveId(d.id);
-    carregar();
-
-    let enviadosNoLote = 0;
-    try {
-      while (true) {
-        if (pauseFlagRef.current.has(d.id)) break;
-
-        const { data: pendings } = await supabase
-          .from("disparo_logs").select("*")
-          .eq("disparo_id", d.id).eq("status", "pending")
-          .order("created_at").limit(1);
-        const log = pendings?.[0] as DisparoLog | undefined;
-        if (!log) break;
-
-        if (!inWindow(d.horario_inicio, d.horario_fim)) {
-          await sleep(60_000);
-          continue;
-        }
-
-        await supabase.from("disparo_logs").update({ status: "sending", tentativas: log.tentativas + 1 }).eq("id", log.id);
-        try {
-          await enviarMensagem(evolution, log.telefone, log.mensagem_enviada ?? "");
-          await supabase.from("disparo_logs").update({ status: "sent", enviado_at: new Date().toISOString() }).eq("id", log.id);
-          const { data: cur } = await supabase.from("disparos").select("enviados").eq("id", d.id).single();
-          await supabase.from("disparos").update({ enviados: ((cur as any)?.enviados ?? 0) + 1 }).eq("id", d.id);
-        } catch (err: any) {
-          await supabase.from("disparo_logs").update({ status: "failed", erro: err.message ?? "erro" }).eq("id", log.id);
-          const { data: cur } = await supabase.from("disparos").select("falhas").eq("id", d.id).single();
-          await supabase.from("disparos").update({ falhas: ((cur as any)?.falhas ?? 0) + 1 }).eq("id", d.id);
-        }
-
-        await refreshActive(d.id);
-
-        enviadosNoLote += 1;
-        if (d.pausa_a_cada > 0 && enviadosNoLote % d.pausa_a_cada === 0) {
-          await sleep(d.pausa_duracao * 60_000);
-        } else {
-          const wait = (Math.floor(Math.random() * (d.intervalo_max - d.intervalo_min + 1)) + d.intervalo_min) * 1000;
-          await sleep(wait);
-        }
-      }
-
-      if (!pauseFlagRef.current.has(d.id)) {
-        await setStatus(d.id, "concluido", { data_fim: new Date().toISOString() });
-        toast.success(`✅ Disparo "${d.nome}" concluído`);
-      }
-    } finally {
-      runningRef.current.delete(d.id);
-      pauseFlagRef.current.delete(d.id);
-      carregar();
-      refreshActive(d.id);
+    lockRef.current = false;
+    if (lotePorDisparoRef.current[d.id] === undefined) {
+      lotePorDisparoRef.current[d.id] = lerEstadoLocal(d.id).lote ?? 0;
     }
+
+    await setStatus(d.id, "em_andamento", { data_inicio: d.data_inicio ?? new Date().toISOString() });
+    setActiveId(d.id);
+    await carregar();
+    // dispara imediatamente o primeiro
+    processarProximo({ ...d, status: "em_andamento" });
   };
 
   const refreshActive = async (id: string) => {
