@@ -442,6 +442,36 @@ export default function LeadsPage() {
     }
   };
 
+  // ============ EXPORTAR CSV ============
+  const exportarCsv = () => {
+    const filtrados = filtered;
+    if (filtrados.length === 0) {
+      toast({ title: "Nenhum contato para exportar" });
+      return;
+    }
+    const headers = ["nome", "telefone", "email", "empresa", "cargo", "origem", "status", "tags", "notas"];
+    const rows = filtrados.map((c) => [
+      c.nome ?? "",
+      c.telefone ?? "",
+      c.email ?? "",
+      c.empresa ?? "",
+      c.cargo ?? "",
+      c.origem ?? "",
+      c.status ?? "",
+      (c.tags ?? []).join(";"),
+      (c.notas ?? "").replace(/\n/g, " "),
+    ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leads_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: `✅ ${filtrados.length} contatos exportados` });
+  };
+
   // ============ FILTROS ============
   const filtered = contatos.filter((c) => {
     const s = search.toLowerCase();
