@@ -474,6 +474,9 @@ export default function LeadsPage() {
             <Button variant="outline" size="sm" onClick={() => { setImportLista(""); setModalImport(true); }}>
               <Upload className="h-4 w-4 mr-1" /> Importar CSV
             </Button>
+            <Button variant="outline" size="sm" onClick={exportarCsv}>
+              <Download className="h-4 w-4 mr-1" /> Exportar CSV
+            </Button>
             <Button size="sm" onClick={abrirNovo}>
               <Plus className="h-4 w-4 mr-1" /> Novo Contato
             </Button>
