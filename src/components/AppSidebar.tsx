@@ -1,5 +1,6 @@
 import {
-  LayoutDashboard, Users, Kanban, MessageCircle, Megaphone, Plug, LogOut, ChevronLeft, Brain, ShieldCheck, PhoneCall, Bot, Send,
+  LayoutDashboard, Users, Kanban, MessageCircle, Megaphone, Plug,
+  LogOut, Brain, ShieldCheck, PhoneCall, Bot, Send,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/mentoark-logo.png";
@@ -11,16 +12,16 @@ import {
 } from "@/components/ui/sidebar";
 
 const items = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Leads", url: "/leads", icon: Users },
-  { title: "Discagem", url: "/discagem", icon: PhoneCall },
-  { title: "Funil de Vendas", url: "/funil", icon: Kanban },
-  { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
-  { title: "Disparos", url: "/disparos", icon: Send },
-  { title: "Campanhas", url: "/campanhas", icon: Megaphone },
-  { title: "Integrações", url: "/integracoes", icon: Plug },
-  { title: "Agentes", url: "/agentes", icon: Bot },
-  { title: "Cérebro do Agente", url: "/cerebro", icon: Brain },
+  { title: "Dashboard",         url: "/dashboard",   icon: LayoutDashboard },
+  { title: "Leads",             url: "/leads",       icon: Users           },
+  { title: "Discagem",          url: "/discagem",    icon: PhoneCall       },
+  { title: "Funil de Vendas",   url: "/funil",       icon: Kanban          },
+  { title: "WhatsApp",          url: "/whatsapp",    icon: MessageCircle   },
+  { title: "Disparos",          url: "/disparos",    icon: Send            },
+  { title: "Campanhas",         url: "/campanhas",   icon: Megaphone       },
+  { title: "Integrações",       url: "/integracoes", icon: Plug            },
+  { title: "Agentes",           url: "/agentes",     icon: Bot             },
+  { title: "Cérebro do Agente", url: "/cerebro",     icon: Brain           },
 ];
 
 export function AppSidebar() {
@@ -40,12 +41,16 @@ export function AppSidebar() {
     : items;
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border sidebar-gradient">
+      {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-sidebar-border">
-        <img src={logo} alt="MentoArk" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+        <div className="w-9 h-9 rounded-lg gradient-brand flex items-center justify-center shrink-0 glow-primary overflow-hidden">
+          <img src={logo} alt="MentoArk" className="w-full h-full object-cover" />
+        </div>
         {!collapsed && (
-          <span className="font-bold text-lg text-sidebar-foreground tracking-tight">
-            Mento<span className="text-primary">Ark</span>
+          <span className="font-bold text-lg tracking-tight">
+            <span className="text-sidebar-foreground">Mento</span>
+            <span className="gradient-brand-text">Ark</span>
           </span>
         )}
       </div>
@@ -54,28 +59,44 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/dashboard"}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                      activeClassName="bg-primary/10 text-primary font-medium"
-                    >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {menuItems.map((item) => {
+                const isActive = item.url === "/dashboard"
+                  ? location.pathname === "/dashboard"
+                  : location.pathname === item.url || location.pathname.startsWith(item.url + "/");
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/dashboard"}
+                        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                          isActive
+                            ? "gradient-brand-subtle font-medium"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent"
+                        }`}
+                      >
+                        {isActive && (
+                          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r gradient-brand" />
+                        )}
+                        <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-primary" : ""}`} />
+                        {!collapsed && (
+                          <span className={isActive ? "gradient-brand-text" : ""}>{item.title}</span>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-3">
-        <SidebarMenuButton onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground w-full rounded-lg hover:bg-sidebar-accent transition-colors">
+        <SidebarMenuButton
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground w-full rounded-lg hover:bg-sidebar-accent transition-colors"
+        >
           <LogOut className="h-5 w-5 shrink-0" />
           {!collapsed && <span>Sair</span>}
         </SidebarMenuButton>
