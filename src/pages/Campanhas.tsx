@@ -60,6 +60,7 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Target,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -178,6 +179,14 @@ export default function CampanhasPage() {
       toast.error("Cliques não podem ser maiores que impressões.");
       return;
     }
+    if (Number(form.investimento) < 0) {
+      toast.error("Investimento não pode ser negativo");
+      return;
+    }
+    if (Number(form.leads_gerados) < 0 || Number(form.conversoes) < 0) {
+      toast.error("Leads e conversões não podem ser negativos");
+      return;
+    }
     setSalvando(true);
     const { ctr, cpl } = calcularDerivados();
     const payload = {
@@ -232,10 +241,14 @@ export default function CampanhasPage() {
     carregar();
   };
 
-  const totalInvestimento = campanhas.reduce((s, c) => s + Number(c.investimento || 0), 0);
-  const totalLeads = campanhas.reduce((s, c) => s + (c.leads_gerados || 0), 0);
-  const totalConversoes = campanhas.reduce((s, c) => s + (c.conversoes || 0), 0);
+  const ativas = campanhas.filter((c) => c.status === "ativa");
+  const totalInvestimento = ativas.reduce((s, c) => s + Number(c.investimento || 0), 0);
+  const totalLeads = ativas.reduce((s, c) => s + (c.leads_gerados || 0), 0);
+  const totalConversoes = ativas.reduce((s, c) => s + (c.conversoes || 0), 0);
   const cplMedio = totalLeads > 0 ? Number((totalInvestimento / totalLeads).toFixed(2)) : 0;
+  const roas = totalInvestimento > 0 ? (totalConversoes / totalInvestimento).toFixed(2) : "—";
+  const taxaConversao =
+    totalLeads > 0 ? ((totalConversoes / totalLeads) * 100).toFixed(1) + "%" : "—";
 
   const chartData = campanhas.map((c) => ({
     nome: c.nome.length > 15 ? c.nome.slice(0, 15) + "..." : c.nome,
@@ -261,14 +274,14 @@ export default function CampanhasPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <Card>
             <CardContent className="flex items-center gap-3 p-4">
               <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
                 <DollarSign className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Investimento Total</p>
+                <p className="text-xs text-muted-foreground">Investimento (ativas)</p>
                 <p className="text-lg font-bold">
                   R$ {totalInvestimento.toLocaleString("pt-BR")}
                 </p>
@@ -281,7 +294,7 @@ export default function CampanhasPage() {
                 <Users className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Leads Gerados</p>
+                <p className="text-xs text-muted-foreground">Leads (ativas)</p>
                 <p className="text-lg font-bold">{totalLeads}</p>
               </div>
             </CardContent>
@@ -292,7 +305,7 @@ export default function CampanhasPage() {
                 <TrendingUp className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Conversões</p>
+                <p className="text-xs text-muted-foreground">Conversões (ativas)</p>
                 <p className="text-lg font-bold">{totalConversoes}</p>
               </div>
             </CardContent>
@@ -305,6 +318,28 @@ export default function CampanhasPage() {
               <div>
                 <p className="text-xs text-muted-foreground">CPL Médio</p>
                 <p className="text-lg font-bold">R$ {cplMedio.toLocaleString("pt-BR")}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="w-10 h-10 rounded-xl bg-info/15 text-info flex items-center justify-center">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">ROAS</p>
+                <p className="text-lg font-bold">{roas}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+                <Target className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Taxa de Conversão</p>
+                <p className="text-lg font-bold">{taxaConversao}</p>
               </div>
             </CardContent>
           </Card>
