@@ -650,22 +650,74 @@ export default function CerebroPage() {
           ))}
         </div>
 
+        {/* Busca global */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar em todo o conhecimento (campo, conteúdo, categoria)..."
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
         {loading ? (
           <Card><CardContent className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></CardContent></Card>
+        ) : globalSearch.trim() ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {buscaResultados.length} resultado(s) para "{globalSearch}"
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {buscaResultados.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Nenhum item encontrado
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {buscaResultados.map((r) => (
+                    <div key={r.id} className="rounded-lg border border-border p-3 hover:border-primary/40 transition-colors">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <Badge variant="outline" className="text-xs">{tipoLabel[r.tipo]}</Badge>
+                        {r.categoria && <Badge variant="secondary" className="text-xs">{r.categoria}</Badge>}
+                        <IndexBadge indexado={r.indexado} />
+                      </div>
+                      {r.campo && <p className="font-medium text-sm">{r.campo}</p>}
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">{r.conteudo}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         ) : (
           <Tabs defaultValue="personalidade">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-10 h-auto">
-              <TabsTrigger value="personalidade"><User className="h-4 w-4 mr-1" /> Personalidade</TabsTrigger>
-              <TabsTrigger value="negocio"><Building2 className="h-4 w-4 mr-1" /> Negócio</TabsTrigger>
-              <TabsTrigger value="faqs"><HelpCircle className="h-4 w-4 mr-1" /> FAQs</TabsTrigger>
-              <TabsTrigger value="objecoes"><Shield className="h-4 w-4 mr-1" /> Objeções</TabsTrigger>
-              <TabsTrigger value="scripts"><FileText className="h-4 w-4 mr-1" /> Scripts</TabsTrigger>
-              <TabsTrigger value="vetorial"><Database className="h-4 w-4 mr-1" /> Base Vetorial</TabsTrigger>
-              <TabsTrigger value="prompt"><FileCode className="h-4 w-4 mr-1" /> Prompt</TabsTrigger>
-              <TabsTrigger value="testar"><MessageCircle className="h-4 w-4 mr-1" /> Testar Agente</TabsTrigger>
-              <TabsTrigger value="config"><Settings className="h-4 w-4 mr-1" /> Configurações</TabsTrigger>
-              <TabsTrigger value="gerador"><Wand2 className="h-4 w-4 mr-1" /> Gerador IA</TabsTrigger>
-            </TabsList>
+            {/* Grupo Conteúdo */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Conteúdo</p>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+                <TabsTrigger value="personalidade"><User className="h-4 w-4 mr-1" /> Personalidade</TabsTrigger>
+                <TabsTrigger value="negocio"><Building2 className="h-4 w-4 mr-1" /> Negócio</TabsTrigger>
+                <TabsTrigger value="faqs"><HelpCircle className="h-4 w-4 mr-1" /> FAQs</TabsTrigger>
+                <TabsTrigger value="objecoes"><Shield className="h-4 w-4 mr-1" /> Objeções</TabsTrigger>
+                <TabsTrigger value="scripts"><FileText className="h-4 w-4 mr-1" /> Scripts</TabsTrigger>
+              </TabsList>
+            </div>
+
+            {/* Grupo Ferramentas */}
+            <div className="space-y-2 mt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Ferramentas</p>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+                <TabsTrigger value="vetorial"><Database className="h-4 w-4 mr-1" /> Vetorial</TabsTrigger>
+                <TabsTrigger value="prompt"><FileCode className="h-4 w-4 mr-1" /> Prompt</TabsTrigger>
+                <TabsTrigger value="testar"><MessageCircle className="h-4 w-4 mr-1" /> Testar</TabsTrigger>
+                <TabsTrigger value="config"><Settings className="h-4 w-4 mr-1" /> Configurações</TabsTrigger>
+                <TabsTrigger value="gerador"><Wand2 className="h-4 w-4 mr-1" /> Gerador IA</TabsTrigger>
+              </TabsList>
+            </div>
+
             <TabsContent value="personalidade" className="mt-4">
               <KeyValueEditor {...personalidade} labelCampo="Atributo" />
             </TabsContent>
