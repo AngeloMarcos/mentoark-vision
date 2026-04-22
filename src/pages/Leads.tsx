@@ -17,8 +17,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LeadTimeline } from "@/components/leads/LeadTimeline";
+import { LeadTarefas } from "@/components/leads/LeadTarefas";
 import {
-  Search, Plus, Upload, Trash2, FolderPlus, Phone, Mail, Building2, Loader2, Pencil, FileUp, MessageCircle, Download,
+  Search, Plus, Upload, Trash2, FolderPlus, Phone, Mail, Building2, Loader2, Pencil, FileUp, MessageCircle, Download, ListTodo,
 } from "lucide-react";
 
 function formatWhatsappNumber(raw: string | null | undefined): string | null {
@@ -84,6 +87,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [listas, setListas] = useState<Lista[]>([]);
   const [contatos, setContatos] = useState<Contato[]>([]);
+  const [tarefasPendentes, setTarefasPendentes] = useState<Map<string, number>>(new Map());
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -112,13 +116,35 @@ export default function LeadsPage() {
   const carregar = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: l }, { data: c }] = await Promise.all([
-      supabase.from("listas").select("*").order("created_at", { ascending: false }),
-      supabase.from("contatos").select("*").order("created_at", { ascending: false }),
+    const [{ data: l }, { data: c }, { data: tar }] = await Promise.all([
+      supabase.from("listas").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("contatos").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("tarefas").select("contato_id").eq("user_id", user.id).in("status", ["pendente", "em_andamento"]),
     ]);
     setListas(l ?? []);
     setContatos(c ?? []);
+    const map = new Map<string, number>();
+    (tar ?? []).forEach((t: { contato_id: string | null }) => {
+      if (!t.contato_id) return;
+      map.set(t.contato_id, (map.get(t.contato_id) ?? 0) + 1);
+    });
+    setTarefasPendentes(map);
     setLoading(false);
+  };
+
+  const recarregarTarefas = async () => {
+    if (!user) return;
+    const { data: tar } = await supabase
+      .from("tarefas")
+      .select("contato_id")
+      .eq("user_id", user.id)
+      .in("status", ["pendente", "em_andamento"]);
+    const map = new Map<string, number>();
+    (tar ?? []).forEach((t: { contato_id: string | null }) => {
+      if (!t.contato_id) return;
+      map.set(t.contato_id, (map.get(t.contato_id) ?? 0) + 1);
+    });
+    setTarefasPendentes(map);
   };
 
   useEffect(() => { carregar(); }, [user?.id]);
