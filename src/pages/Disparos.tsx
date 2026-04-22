@@ -37,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
+import { normalizarTelefoneBR } from "@/lib/phone";
 
 type DisparoStatus = "rascunho" | "em_andamento" | "pausado" | "concluido" | "cancelado";
 
@@ -79,13 +80,9 @@ const statusConfig: Record<DisparoStatus, { label: string; className: string }> 
 };
 
 function formatWhatsappNumber(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  let digits = raw.replace(/\D/g, "");
-  if (!digits) return null;
-  digits = digits.replace(/^0+/, "");
-  if (!digits.startsWith("55") && (digits.length === 10 || digits.length === 11)) digits = "55" + digits;
-  if (digits.length < 10) return null;
-  return digits;
+  // Mantém compatibilidade com o CSV upload — usa o normalizador BR rigoroso.
+  const r = normalizarTelefoneBR(raw);
+  return r.valido ? r.jid : null;
 }
 
 const renderTemplate = (tpl: string, c: { nome?: string | null; empresa?: string | null; telefone?: string | null }) =>
@@ -294,23 +291,47 @@ export default function DisparosPage() {
     }).select().single();
     if (error || !created) { toast.error(error?.message ?? "Erro ao criar"); return; }
 
-    // 2) gera logs (rodízio aleatório de variações)
+    // 2) gera logs (rodízio aleatório de variações) — pré-valida telefones
     const ativas = variacoes.filter((v) => v.trim());
+    let invalidos = 0;
     const rows = contatosSelecionados.map((c) => {
       const tpl = ativas[Math.floor(Math.random() * ativas.length)];
+      const norm = normalizarTelefoneBR(c.telefone);
+      if (!norm.valido) {
+        invalidos++;
+        return {
+          disparo_id: created.id,
+          contato_id: c.id ?? null,
+          user_id: user.id,
+          nome: c.nome,
+          telefone: (c.telefone ?? "").toString(),
+          mensagem_enviada: renderTemplate(tpl, c),
+          status: "invalido",
+          erro: norm.motivo ?? "Telefone inválido",
+        };
+      }
       return {
         disparo_id: created.id,
         contato_id: c.id ?? null,
         user_id: user.id,
         nome: c.nome,
-        telefone: c.telefone!,
-        mensagem_enviada: renderTemplate(tpl, c),
+        telefone: norm.jid!,
+        mensagem_enviada: renderTemplate(tpl, { ...c, telefone: norm.jid }),
         status: "pending",
       };
     });
     if (rows.length) await supabase.from("disparo_logs").insert(rows);
+    // Já contabiliza invalidos como "falhas pré-detectadas" no agregado do disparo
+    if (invalidos > 0) {
+      await supabase.from("disparos").update({ falhas: invalidos }).eq("id", created.id);
+    }
 
-    toast.success("🚀 Fila criada — iniciando disparo");
+    const validos = rows.length - invalidos;
+    if (invalidos > 0) {
+      toast.success(`🚀 ${validos} enviados para fila · ${invalidos} ignorados (telefone inválido)`);
+    } else {
+      toast.success("🚀 Fila criada — iniciando disparo");
+    }
     await carregar();
     setActiveId(created.id);
     iniciar(created as Disparo);
@@ -519,9 +540,11 @@ export default function DisparosPage() {
       sending: "bg-info/20 text-info border-info/30",
       sent: "bg-success/20 text-success border-success/30",
       failed: "bg-destructive/20 text-destructive border-destructive/30",
+      invalido: "bg-warning/20 text-warning border-warning/30",
       skipped: "bg-warning/20 text-warning border-warning/30",
     };
-    return <Badge variant="outline" className={map[s] ?? ""}>{s}</Badge>;
+    const label: Record<string, string> = { invalido: "inválido" };
+    return <Badge variant="outline" className={map[s] ?? ""}>{label[s] ?? s}</Badge>;
   };
 
   const previewContato = contatosSelecionados[0];
@@ -1009,17 +1032,20 @@ export default function DisparosPage() {
               <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="sending">Sending</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="pending">Pendentes</SelectItem>
+                <SelectItem value="sending">Enviando</SelectItem>
+                <SelectItem value="sent">Enviados</SelectItem>
+                <SelectItem value="failed">Falhas reais</SelectItem>
+                <SelectItem value="invalido">Inválidos</SelectItem>
               </SelectContent>
             </Select>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => logsDisparo && carregarLogs(logsDisparo.id)}>
                 <RefreshCw className="h-4 w-4" /> Atualizar
               </Button>
-              <Button size="sm" variant="outline" onClick={reenviarFalhas}>Reenviar falhas</Button>
+              <Button size="sm" variant="outline" onClick={reenviarFalhas} title="Reprocessa apenas falhas reais — ignora telefones inválidos">
+                Reenviar falhas reais
+              </Button>
             </div>
           </div>
           <div className="max-h-[60vh] overflow-auto border border-border/60 rounded-md">

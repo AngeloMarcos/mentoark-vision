@@ -21,8 +21,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadTimeline } from "@/components/leads/LeadTimeline";
 import { LeadTarefas } from "@/components/leads/LeadTarefas";
 import {
-  Search, Plus, Upload, Trash2, FolderPlus, Phone, Mail, Building2, Loader2, Pencil, FileUp, MessageCircle, Download, ListTodo,
+  Search, Plus, Upload, Trash2, FolderPlus, Phone, Mail, Building2, Loader2, Pencil, FileUp, MessageCircle, Download, ListTodo, ShieldCheck,
 } from "lucide-react";
+import { normalizarTelefoneBR } from "@/lib/phone";
 
 function formatWhatsappNumber(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -438,10 +439,22 @@ export default function LeadsPage() {
         description: exemplos,
       });
     }
+    // Aviso de fixos: % de números fixos / inválidos importados
+    let fixos = 0;
+    for (const n of novos) {
+      const r = normalizarTelefoneBR(n.telefone);
+      if (!r.valido) fixos++;
+    }
+    const pctFixos = novos.length > 0 ? Math.round((fixos / novos.length) * 100) : 0;
+    if (pctFixos >= 30) {
+      toast({
+        title: `⚠️ ${pctFixos}% dos números são fixos ou inválidos`,
+        description: `Esta lista contém muitos telefones fixos — disparos via WhatsApp irão falhar. Use "Validar lista no WhatsApp" para confirmar.`,
+        variant: "destructive",
+      });
+    }
     carregar();
   };
-
-  // Upload de arquivo do dispositivo (CSV ou Excel)
   const handleArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -498,6 +511,35 @@ export default function LeadsPage() {
     toast({ title: `✅ ${filtrados.length} contatos exportados` });
   };
 
+  // ============ VALIDAR LISTA NO WHATSAPP ============
+  const [validandoWa, setValidandoWa] = useState(false);
+  const validarListaWhatsApp = async () => {
+    if (!user) return;
+    const ids = filtered.map((c) => c.id);
+    if (ids.length === 0) {
+      toast({ title: "Nenhum contato para validar" });
+      return;
+    }
+    if (!confirm(`Validar ${ids.length} contato(s) no WhatsApp?\n\nIsso consulta a Evolution API e marca números inexistentes com a tag "whatsapp_invalido".`)) return;
+    setValidandoWa(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("validar-numeros-whatsapp", {
+        body: { contato_ids: ids },
+      });
+      if (error) throw error;
+      const r = data as { total: number; validos: number; invalidos: number; fixos: number };
+      toast({
+        title: "✅ Validação concluída",
+        description: `${r.validos} válidos · ${r.invalidos} inválidos (${r.fixos} fixos detectados)`,
+      });
+      carregar();
+    } catch (err: any) {
+      toast({ title: "Erro na validação", description: err.message, variant: "destructive" });
+    } finally {
+      setValidandoWa(false);
+    }
+  };
+
   // ============ FILTROS ============
   const filtered = contatos.filter((c) => {
     const s = search.toLowerCase();
@@ -532,6 +574,10 @@ export default function LeadsPage() {
             </Button>
             <Button variant="outline" size="sm" onClick={exportarCsv}>
               <Download className="h-4 w-4 mr-1" /> Exportar CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={validarListaWhatsApp} disabled={validandoWa}>
+              {validandoWa ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ShieldCheck className="h-4 w-4 mr-1" />}
+              Validar lista no WhatsApp
             </Button>
             <Button size="sm" onClick={abrirNovo}>
               <Plus className="h-4 w-4 mr-1" /> Novo Contato
