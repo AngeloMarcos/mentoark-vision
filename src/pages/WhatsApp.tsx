@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Search, Bot, User, Phone, MessageCircle, RefreshCw, Loader2, Copy, ExternalLink } from "lucide-react";
+import { Search, Bot, User, Phone, MessageCircle, RefreshCw, Loader2, Copy, ExternalLink, FileDown, UserCheck, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 interface ChatRow {
@@ -24,6 +25,21 @@ interface Conversa {
   ultima_mensagem: string;
   total: number;
 }
+
+interface LeadInfo {
+  id: string;
+  nome: string;
+  status: string;
+}
+
+const statusOptions = [
+  { value: "novo", label: "Novo" },
+  { value: "contatado", label: "Contatado" },
+  { value: "qualificado", label: "Qualificado" },
+  { value: "agendado", label: "Agendado" },
+  { value: "fechado", label: "Fechado" },
+  { value: "perdido", label: "Perdido" },
+];
 
 const formatPhone = (raw: string) => {
   const d = (raw || "").replace(/\D/g, "");
@@ -53,16 +69,24 @@ const PERIODOS = {
 } as const;
 
 export default function WhatsAppPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState<ChatRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [periodo, setPeriodo] = useState<keyof typeof PERIODOS>("todos");
   const [selecionada, setSelecionada] = useState<Conversa | null>(null);
 
+  // Lead vinculado à conversa aberta
+  const [lead, setLead] = useState<LeadInfo | null>(null);
+  const [leadStatus, setLeadStatus] = useState<string>("novo");
+  const [leadLoading, setLeadLoading] = useState(false);
+  const [leadSaving, setLeadSaving] = useState(false);
+
+  // Busca dentro do chat
+  const [chatSearch, setChatSearch] = useState("");
+
   const carregar = async () => {
     setLoading(true);
-    // Tabela n8n_chat_histories não possui coluna user_id — acesso é controlado
-    // pela RLS "Authenticated can read chat histories" (visível a autenticados).
     const { data, error } = await (supabase as any)
       .from("n8n_chat_histories")
       .select("id, session_id, message, created_at")
@@ -87,7 +111,6 @@ export default function WhatsAppPage() {
     const since = PERIODOS[periodo]();
     const filtered = since ? rows.filter((r) => r.created_at >= since) : rows;
     const map = new Map<string, Conversa>();
-    // rows já vêm desc → primeira ocorrência por sessão é a última mensagem
     for (const r of filtered) {
       const cur = map.get(r.session_id);
       if (!cur) {
@@ -120,9 +143,44 @@ export default function WhatsAppPage() {
     return { conversasHoje: sessoesHoje.size, mensagensHoje: hoje.length, media, maior };
   }, [rows]);
 
+  const buscarLead = async (sessionId: string) => {
+    if (!user) return;
+    const digits = sessionId.replace(/\D/g, "");
+    if (digits.length < 8) return;
+    setLeadLoading(true);
+    const { data } = await supabase
+      .from("contatos")
+      .select("id, nome, status")
+      .eq("user_id", user.id)
+      .ilike("telefone", `%${digits.slice(-9)}%`)
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      setLead({ id: data.id, nome: data.nome, status: data.status });
+      setLeadStatus(data.status);
+    } else {
+      setLead(null);
+    }
+    setLeadLoading(false);
+  };
+
+  const salvarStatusLead = async () => {
+    if (!lead) return;
+    setLeadSaving(true);
+    const { error } = await supabase
+      .from("contatos")
+      .update({ status: leadStatus })
+      .eq("id", lead.id);
+    setLeadSaving(false);
+    if (error) {
+      toast.error("Erro ao salvar status");
+      return;
+    }
+    setLead({ ...lead, status: leadStatus });
+    toast.success("Status atualizado");
+  };
+
   const abrirConversa = async (c: Conversa) => {
-    // Buscar tudo dessa sessão (caso passe do limite)
-    // Tabela n8n_chat_histories não possui coluna user_id — acesso controlado por RLS.
     const { data, error } = await (supabase as any)
       .from("n8n_chat_histories")
       .select("id, session_id, message, created_at")
@@ -130,12 +188,51 @@ export default function WhatsAppPage() {
       .order("created_at", { ascending: true });
     if (error) return toast.error(error.message);
     setSelecionada({ ...c, mensagens: (data ?? []) as ChatRow[] });
+    setChatSearch("");
+    setLead(null);
+    setLeadStatus("novo");
+    buscarLead(c.session_id);
   };
 
   const copiarTelefone = (tel: string) => {
     navigator.clipboard.writeText(tel);
     toast.success("Telefone copiado");
   };
+
+  const exportarTxt = () => {
+    if (!selecionada) return;
+    const linhas = selecionada.mensagens.map((m) => {
+      const isHuman = m.message?.type === "human";
+      const autor = isHuman ? "Lead" : "Agente";
+      const data = new Date(m.created_at).toLocaleString("pt-BR");
+      return `[${data}] ${autor}: ${m.message?.content ?? ""}`;
+    });
+    const cabecalho = [
+      `Conversa WhatsApp — ${formatPhone(selecionada.session_id)}`,
+      `Total de mensagens: ${selecionada.mensagens.length}`,
+      `Exportado em: ${new Date().toLocaleString("pt-BR")}`,
+      "─".repeat(60),
+      "",
+    ];
+    const conteudo = [...cabecalho, ...linhas].join("\n");
+    const blob = new Blob([conteudo], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conversa_${selecionada.session_id.replace(/\D/g, "")}_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Conversa exportada");
+  };
+
+  const mensagensFiltradas = useMemo(() => {
+    if (!selecionada) return [];
+    const q = chatSearch.trim().toLowerCase();
+    if (!q) return selecionada.mensagens;
+    return selecionada.mensagens.filter((m) =>
+      (m.message?.content ?? "").toLowerCase().includes(q),
+    );
+  }, [selecionada, chatSearch]);
 
   return (
     <CRMLayout>
@@ -219,15 +316,71 @@ export default function WhatsAppPage() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2"><Phone className="h-4 w-4" /> {selecionada && formatPhone(selecionada.session_id)}</SheetTitle>
             <SheetDescription>{selecionada?.mensagens.length} mensagens nesta conversa</SheetDescription>
-            <div className="flex gap-2 pt-2">
-              <Button size="sm" variant="outline" onClick={() => selecionada && copiarTelefone(selecionada.session_id)}><Copy className="h-4 w-4 mr-1" /> Copiar telefone</Button>
+            <div className="flex gap-2 pt-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => selecionada && copiarTelefone(selecionada.session_id)}><Copy className="h-4 w-4 mr-1" /> Copiar</Button>
+              <Button size="sm" variant="outline" onClick={exportarTxt}><FileDown className="h-4 w-4 mr-1" /> Exportar .txt</Button>
               <Button size="sm" asChild className="bg-whatsapp hover:bg-whatsapp/90 text-white">
-                <a href={`https://wa.me/${selecionada?.session_id?.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-1" /> Abrir no WhatsApp</a>
+                <a href={`https://wa.me/${selecionada?.session_id?.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4 mr-1" /> WhatsApp</a>
               </Button>
             </div>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto mt-4 space-y-3 pr-2">
-            {selecionada?.mensagens.map((m, idx) => {
+
+          {/* Card do lead vinculado */}
+          <div className="mt-3 rounded-lg border border-border p-3 bg-muted/30">
+            {leadLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Buscando lead...
+              </div>
+            ) : lead ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-success" />
+                  <p className="text-sm font-medium">{lead.nome}</p>
+                  <Badge variant="outline" className="text-xs">{lead.status}</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={leadStatus} onValueChange={setLeadStatus}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={salvarStatusLead}
+                    disabled={leadSaving || leadStatus === lead.status}
+                  >
+                    {leadSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Lead não encontrado nos contatos</p>
+            )}
+          </div>
+
+          {/* Busca no chat */}
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar nesta conversa..."
+              value={chatSearch}
+              onChange={(e) => setChatSearch(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
+            {chatSearch && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {mensagensFiltradas.length} de {selecionada?.mensagens.length} mensagens
+              </p>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto mt-3 space-y-3 pr-2">
+            {mensagensFiltradas.map((m, idx) => {
               const isHuman = m.message?.type === "human";
               return (
                 <div key={m.id ?? idx} className={`flex ${isHuman ? "justify-end" : "justify-start"}`}>
@@ -240,6 +393,11 @@ export default function WhatsAppPage() {
                 </div>
               );
             })}
+            {chatSearch && mensagensFiltradas.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">
+                Nenhuma mensagem corresponde à busca
+              </p>
+            )}
           </div>
         </SheetContent>
       </Sheet>

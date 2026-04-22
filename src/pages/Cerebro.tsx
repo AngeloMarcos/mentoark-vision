@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Brain, Download, Plus, Trash2, Pencil, User, Building2, HelpCircle, Shield, FileText, Database, MessageCircle, FileCode, Settings, Loader2, RefreshCw, Wand2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Brain, Download, Plus, Trash2, Pencil, User, Building2, HelpCircle, Shield, FileText, Database, MessageCircle, FileCode, Settings, Loader2, RefreshCw, Wand2, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { BaseVetorial } from "@/components/cerebro/BaseVetorial";
 import { TestarAgente } from "@/components/cerebro/TestarAgente";
 import { PromptAgente } from "@/components/cerebro/PromptAgente";
@@ -33,10 +35,25 @@ interface ConhecimentoItem {
 
 // Helper for index badge
 function IndexBadge({ indexado }: { indexado: boolean }) {
-  return indexado ? (
-    <Badge className="bg-success/15 text-success border-0">Indexado</Badge>
-  ) : (
-    <Badge className="bg-warning/15 text-warning border-0">Pendente</Badge>
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {indexado ? (
+            <Badge className="bg-success/15 text-success border-0 cursor-help">Indexado</Badge>
+          ) : (
+            <Badge className="bg-warning/15 text-warning border-0 cursor-help">Pendente</Badge>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs">
+          <p className="text-xs">
+            <strong>Indexado</strong> = disponível para o agente
+            <br />
+            <strong>Pendente</strong> = aguardando sincronização RAG
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -500,6 +517,81 @@ export default function CerebroPage() {
     { label: "Scripts", value: scripts.items.length, icon: FileText, color: "text-warning" },
   ];
 
+  // Busca global
+  const [globalSearch, setGlobalSearch] = useState("");
+  const buscaResultados = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (!q) return [];
+    return itens.filter(
+      (i) =>
+        (i.campo ?? "").toLowerCase().includes(q) ||
+        (i.conteudo ?? "").toLowerCase().includes(q) ||
+        (i.categoria ?? "").toLowerCase().includes(q),
+    );
+  }, [itens, globalSearch]);
+
+  const tipoLabel: Record<TipoConhecimento, string> = {
+    personalidade: "Personalidade",
+    negocio: "Negócio",
+    faq: "FAQ",
+    objecao: "Objeção",
+    script: "Script",
+  };
+
+  // Importar CSV/XLSX
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+
+  const importarArquivo = async (file: File) => {
+    if (!user) {
+      toast.error("Faça login");
+      return;
+    }
+    setImportando(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const linhas = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+
+      const tiposValidos: TipoConhecimento[] = ["personalidade", "negocio", "faq", "objecao", "script"];
+      const registros = linhas
+        .map((l) => {
+          const tipo = String(l.tipo ?? "").trim().toLowerCase() as TipoConhecimento;
+          const conteudo = String(l.conteudo ?? "").trim();
+          if (!tipo || !tiposValidos.includes(tipo) || !conteudo) return null;
+          return {
+            user_id: user.id,
+            tipo,
+            campo: String(l.campo ?? "").trim() || null,
+            conteudo,
+            categoria: String(l.categoria ?? "").trim() || null,
+            contexto: String(l.contexto ?? "").trim() || null,
+            indexado: false,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+
+      if (registros.length === 0) {
+        toast.error("Nenhuma linha válida. Colunas esperadas: tipo, campo, conteudo, categoria, contexto");
+        return;
+      }
+
+      const { error } = await (supabase as any).from("conhecimento").insert(registros);
+      if (error) {
+        toast.error("Erro ao importar: " + error.message);
+        return;
+      }
+      toast.success(`${registros.length} item(ns) importado(s) (${linhas.length - registros.length} ignorados)`);
+      carregar();
+    } catch {
+      toast.error("Erro ao processar arquivo");
+    } finally {
+      setImportando(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <CRMLayout>
       <div className="space-y-6">
@@ -511,9 +603,27 @@ export default function CerebroPage() {
             </h1>
             <p className="text-muted-foreground mt-1">Base de conhecimento que alimenta a IA via N8N</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importarArquivo(f);
+              }}
+            />
             <Button variant="outline" onClick={carregar} size="lg" disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Atualizar
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importando}
+            >
+              {importando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Importar CSV
             </Button>
             <Button onClick={sincronizarRAG} size="lg" disabled={sincronizando}>
               {sincronizando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sincronizar RAG
@@ -540,22 +650,74 @@ export default function CerebroPage() {
           ))}
         </div>
 
+        {/* Busca global */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar em todo o conhecimento (campo, conteúdo, categoria)..."
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
         {loading ? (
           <Card><CardContent className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></CardContent></Card>
+        ) : globalSearch.trim() ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {buscaResultados.length} resultado(s) para "{globalSearch}"
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {buscaResultados.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  Nenhum item encontrado
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {buscaResultados.map((r) => (
+                    <div key={r.id} className="rounded-lg border border-border p-3 hover:border-primary/40 transition-colors">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <Badge variant="outline" className="text-xs">{tipoLabel[r.tipo]}</Badge>
+                        {r.categoria && <Badge variant="secondary" className="text-xs">{r.categoria}</Badge>}
+                        <IndexBadge indexado={r.indexado} />
+                      </div>
+                      {r.campo && <p className="font-medium text-sm">{r.campo}</p>}
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">{r.conteudo}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         ) : (
           <Tabs defaultValue="personalidade">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-10 h-auto">
-              <TabsTrigger value="personalidade"><User className="h-4 w-4 mr-1" /> Personalidade</TabsTrigger>
-              <TabsTrigger value="negocio"><Building2 className="h-4 w-4 mr-1" /> Negócio</TabsTrigger>
-              <TabsTrigger value="faqs"><HelpCircle className="h-4 w-4 mr-1" /> FAQs</TabsTrigger>
-              <TabsTrigger value="objecoes"><Shield className="h-4 w-4 mr-1" /> Objeções</TabsTrigger>
-              <TabsTrigger value="scripts"><FileText className="h-4 w-4 mr-1" /> Scripts</TabsTrigger>
-              <TabsTrigger value="vetorial"><Database className="h-4 w-4 mr-1" /> Base Vetorial</TabsTrigger>
-              <TabsTrigger value="prompt"><FileCode className="h-4 w-4 mr-1" /> Prompt</TabsTrigger>
-              <TabsTrigger value="testar"><MessageCircle className="h-4 w-4 mr-1" /> Testar Agente</TabsTrigger>
-              <TabsTrigger value="config"><Settings className="h-4 w-4 mr-1" /> Configurações</TabsTrigger>
-              <TabsTrigger value="gerador"><Wand2 className="h-4 w-4 mr-1" /> Gerador IA</TabsTrigger>
-            </TabsList>
+            {/* Grupo Conteúdo */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Conteúdo</p>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+                <TabsTrigger value="personalidade"><User className="h-4 w-4 mr-1" /> Personalidade</TabsTrigger>
+                <TabsTrigger value="negocio"><Building2 className="h-4 w-4 mr-1" /> Negócio</TabsTrigger>
+                <TabsTrigger value="faqs"><HelpCircle className="h-4 w-4 mr-1" /> FAQs</TabsTrigger>
+                <TabsTrigger value="objecoes"><Shield className="h-4 w-4 mr-1" /> Objeções</TabsTrigger>
+                <TabsTrigger value="scripts"><FileText className="h-4 w-4 mr-1" /> Scripts</TabsTrigger>
+              </TabsList>
+            </div>
+
+            {/* Grupo Ferramentas */}
+            <div className="space-y-2 mt-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Ferramentas</p>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
+                <TabsTrigger value="vetorial"><Database className="h-4 w-4 mr-1" /> Vetorial</TabsTrigger>
+                <TabsTrigger value="prompt"><FileCode className="h-4 w-4 mr-1" /> Prompt</TabsTrigger>
+                <TabsTrigger value="testar"><MessageCircle className="h-4 w-4 mr-1" /> Testar</TabsTrigger>
+                <TabsTrigger value="config"><Settings className="h-4 w-4 mr-1" /> Configurações</TabsTrigger>
+                <TabsTrigger value="gerador"><Wand2 className="h-4 w-4 mr-1" /> Gerador IA</TabsTrigger>
+              </TabsList>
+            </div>
+
             <TabsContent value="personalidade" className="mt-4">
               <KeyValueEditor {...personalidade} labelCampo="Atributo" />
             </TabsContent>
