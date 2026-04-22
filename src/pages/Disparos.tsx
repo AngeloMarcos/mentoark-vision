@@ -80,13 +80,9 @@ const statusConfig: Record<DisparoStatus, { label: string; className: string }> 
 };
 
 function formatWhatsappNumber(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  let digits = raw.replace(/\D/g, "");
-  if (!digits) return null;
-  digits = digits.replace(/^0+/, "");
-  if (!digits.startsWith("55") && (digits.length === 10 || digits.length === 11)) digits = "55" + digits;
-  if (digits.length < 10) return null;
-  return digits;
+  // Mantém compatibilidade com o CSV upload — usa o normalizador BR rigoroso.
+  const r = normalizarTelefoneBR(raw);
+  return r.valido ? r.jid : null;
 }
 
 const renderTemplate = (tpl: string, c: { nome?: string | null; empresa?: string | null; telefone?: string | null }) =>
