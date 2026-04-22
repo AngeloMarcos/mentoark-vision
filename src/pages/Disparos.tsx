@@ -359,10 +359,25 @@ export default function DisparosPage() {
   };
 
   // Processa o próximo log pendente do disparo (recursivo via setTimeout)
-  const processarProximo = async (d: Disparo) => {
+  const processarProximo = async (dIn: Disparo) => {
     if (lockRef.current) return;
-    if (pauseFlagRef.current.has(d.id)) return;
+    if (pauseFlagRef.current.has(dIn.id)) return;
     if (!evolution) { toast.error("Evolution API não configurada"); return; }
+
+    // 🔄 Sempre recarrega configuração mais recente do disparo (intervalos ao vivo)
+    const { data: live } = await supabase
+      .from("disparos")
+      .select("*")
+      .eq("id", dIn.id)
+      .maybeSingle();
+    const d: Disparo = (live as Disparo) ?? dIn;
+
+    // Se foi cancelado/pausado/concluído via UI ou outra aba, para aqui
+    if (d.status === "cancelado" || d.status === "pausado" || d.status === "concluido") {
+      limparTimers();
+      setProximoEnvio(0);
+      return;
+    }
 
     // Janela de horário
     if (!inWindow(d.horario_inicio, d.horario_fim)) {
@@ -376,7 +391,7 @@ export default function DisparosPage() {
     const lote = lotePorDisparoRef.current[d.id] ?? lerEstadoLocal(d.id).lote ?? 0;
     if (d.pausa_a_cada > 0 && lote >= d.pausa_a_cada) {
       lotePorDisparoRef.current[d.id] = 0;
-      const ms = d.pausa_duracao * 60_000;
+      const ms = Math.max(1, d.pausa_duracao) * 60_000;
       salvarEstadoLocal(d.id, { lote: 0, nextAt: Date.now() + ms });
       toast.info(`⏸️ Pausa anti-bloqueio: ${d.pausa_duracao} min`);
       iniciarCountdown(ms / 1000);
