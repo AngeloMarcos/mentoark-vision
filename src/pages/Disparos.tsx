@@ -896,7 +896,7 @@ export default function DisparosPage() {
                         rows={4}
                       />
                       <div className="flex flex-wrap gap-1.5">
-                        {["{{nome}}", "{{empresa}}", "{{telefone}}"].map((v) => (
+                        {["{{nome}}", "{{nome_completo}}", "{{empresa}}", "{{telefone}}"].map((v) => (
                           <button
                             key={v}
                             type="button"
