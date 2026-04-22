@@ -439,10 +439,22 @@ export default function LeadsPage() {
         description: exemplos,
       });
     }
+    // Aviso de fixos: % de números fixos / inválidos importados
+    let fixos = 0;
+    for (const n of novos) {
+      const r = normalizarTelefoneBR(n.telefone);
+      if (!r.valido) fixos++;
+    }
+    const pctFixos = novos.length > 0 ? Math.round((fixos / novos.length) * 100) : 0;
+    if (pctFixos >= 30) {
+      toast({
+        title: `⚠️ ${pctFixos}% dos números são fixos ou inválidos`,
+        description: `Esta lista contém muitos telefones fixos — disparos via WhatsApp irão falhar. Use "Validar lista no WhatsApp" para confirmar.`,
+        variant: "destructive",
+      });
+    }
     carregar();
   };
-
-  // Upload de arquivo do dispositivo (CSV ou Excel)
   const handleArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
