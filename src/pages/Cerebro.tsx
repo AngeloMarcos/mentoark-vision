@@ -603,9 +603,27 @@ export default function CerebroPage() {
             </h1>
             <p className="text-muted-foreground mt-1">Base de conhecimento que alimenta a IA via N8N</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importarArquivo(f);
+              }}
+            />
             <Button variant="outline" onClick={carregar} size="lg" disabled={loading}>
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Atualizar
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importando}
+            >
+              {importando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Importar CSV
             </Button>
             <Button onClick={sincronizarRAG} size="lg" disabled={sincronizando}>
               {sincronizando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Sincronizar RAG
