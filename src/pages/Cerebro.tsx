@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Brain, Download, Plus, Trash2, Pencil, User, Building2, HelpCircle, Shield, FileText, Database, MessageCircle, FileCode, Settings, Loader2, RefreshCw, Wand2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Brain, Download, Plus, Trash2, Pencil, User, Building2, HelpCircle, Shield, FileText, Database, MessageCircle, FileCode, Settings, Loader2, RefreshCw, Wand2, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { BaseVetorial } from "@/components/cerebro/BaseVetorial";
 import { TestarAgente } from "@/components/cerebro/TestarAgente";
 import { PromptAgente } from "@/components/cerebro/PromptAgente";
@@ -33,10 +35,25 @@ interface ConhecimentoItem {
 
 // Helper for index badge
 function IndexBadge({ indexado }: { indexado: boolean }) {
-  return indexado ? (
-    <Badge className="bg-success/15 text-success border-0">Indexado</Badge>
-  ) : (
-    <Badge className="bg-warning/15 text-warning border-0">Pendente</Badge>
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {indexado ? (
+            <Badge className="bg-success/15 text-success border-0 cursor-help">Indexado</Badge>
+          ) : (
+            <Badge className="bg-warning/15 text-warning border-0 cursor-help">Pendente</Badge>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs">
+          <p className="text-xs">
+            <strong>Indexado</strong> = disponível para o agente
+            <br />
+            <strong>Pendente</strong> = aguardando sincronização RAG
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
