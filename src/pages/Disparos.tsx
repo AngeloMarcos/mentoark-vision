@@ -719,9 +719,10 @@ export default function DisparosPage() {
       sent: "bg-success/20 text-success border-success/30",
       failed: "bg-destructive/20 text-destructive border-destructive/30",
       invalido: "bg-warning/20 text-warning border-warning/30",
+      duplicado: "bg-warning/20 text-warning border-warning/30",
       skipped: "bg-warning/20 text-warning border-warning/30",
     };
-    const label: Record<string, string> = { invalido: "inválido" };
+    const label: Record<string, string> = { invalido: "inválido", duplicado: "duplicado" };
     return <Badge variant="outline" className={map[s] ?? ""}>{label[s] ?? s}</Badge>;
   };
 
