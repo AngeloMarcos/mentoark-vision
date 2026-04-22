@@ -85,11 +85,37 @@ function formatWhatsappNumber(raw: string | null | undefined): string | null {
   return r.valido ? r.jid : null;
 }
 
-const renderTemplate = (tpl: string, c: { nome?: string | null; empresa?: string | null; telefone?: string | null }) =>
-  (tpl || "")
-    .split("{{nome}}").join(c.nome ?? "")
+// Extrai apenas o primeiro nome de forma inteligente:
+// - quebra em vírgula / "e" / "&" / "/" (nomes concatenados)
+// - ignora partículas (de, da, do, dos, das, e)
+// - capitaliza corretamente
+const PARTICULAS = new Set(["de", "da", "do", "dos", "das", "e", "del", "la", "y"]);
+const capitalizar = (s: string) =>
+  s.length <= 2 ? s.toLowerCase() : s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+export const extrairPrimeiroNome = (raw?: string | null): string => {
+  if (!raw) return "";
+  // Pega só o primeiro "contato" antes de vírgula, "/", "&", " e " ou " E "
+  const primeiroContato = raw
+    .split(/[,\/&]| (?:e|E|y|Y) /)[0]
+    .trim();
+  if (!primeiroContato) return "";
+  // Pega o primeiro token que não seja partícula
+  const tokens = primeiroContato.split(/\s+/).filter(Boolean);
+  const primeiro = tokens.find((t) => !PARTICULAS.has(t.toLowerCase())) ?? tokens[0] ?? "";
+  return capitalizar(primeiro);
+};
+
+const renderTemplate = (tpl: string, c: { nome?: string | null; empresa?: string | null; telefone?: string | null }) => {
+  const nomeCompleto = (c.nome ?? "").trim();
+  const primeiroNome = extrairPrimeiroNome(nomeCompleto);
+  return (tpl || "")
+    .split("{{primeiro_nome}}").join(primeiroNome)
+    .split("{{nome}}").join(primeiroNome)        // {{nome}} agora também usa só o primeiro nome
+    .split("{{nome_completo}}").join(nomeCompleto)
     .split("{{empresa}}").join(c.empresa ?? "")
     .split("{{telefone}}").join(c.telefone ?? "");
+};
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const inWindow = (start: string, end: string) => {
@@ -870,7 +896,7 @@ export default function DisparosPage() {
                         rows={4}
                       />
                       <div className="flex flex-wrap gap-1.5">
-                        {["{{nome}}", "{{empresa}}", "{{telefone}}"].map((v) => (
+                        {["{{nome}}", "{{nome_completo}}", "{{empresa}}", "{{telefone}}"].map((v) => (
                           <button
                             key={v}
                             type="button"
