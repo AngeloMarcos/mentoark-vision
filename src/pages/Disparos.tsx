@@ -427,14 +427,20 @@ export default function DisparosPage() {
     if (error || !created) { toast.error(error?.message ?? "Erro ao criar"); return; }
 
     // 2) gera logs (rodízio aleatório de variações) — pré-valida telefones
+    //    + deduplica por telefone normalizado (mantém apenas a 1ª ocorrência)
     const ativas = variacoes.filter((v) => v.trim());
     let invalidos = 0;
-    const rows = contatosSelecionados.map((c) => {
+    let duplicados = 0;
+    const vistos = new Set<string>();
+    const rows: any[] = [];
+
+    for (const c of contatosSelecionados) {
       const tpl = ativas[Math.floor(Math.random() * ativas.length)];
       const norm = normalizarTelefoneBR(c.telefone);
+
       if (!norm.valido) {
         invalidos++;
-        return {
+        rows.push({
           disparo_id: created.id,
           contato_id: c.id ?? null,
           user_id: user.id,
@@ -443,9 +449,28 @@ export default function DisparosPage() {
           mensagem_enviada: renderTemplate(tpl, c),
           status: "invalido",
           erro: norm.motivo ?? "Telefone inválido",
-        };
+        });
+        continue;
       }
-      return {
+
+      // Dedupe — se o mesmo telefone já entrou na fila, marca como duplicado
+      if (vistos.has(norm.jid!)) {
+        duplicados++;
+        rows.push({
+          disparo_id: created.id,
+          contato_id: c.id ?? null,
+          user_id: user.id,
+          nome: c.nome,
+          telefone: norm.jid!,
+          mensagem_enviada: null,
+          status: "duplicado",
+          erro: "Telefone duplicado — já existe na fila",
+        });
+        continue;
+      }
+      vistos.add(norm.jid!);
+
+      rows.push({
         disparo_id: created.id,
         contato_id: c.id ?? null,
         user_id: user.id,
@@ -453,20 +478,21 @@ export default function DisparosPage() {
         telefone: norm.jid!,
         mensagem_enviada: renderTemplate(tpl, { ...c, telefone: norm.jid }),
         status: "pending",
-      };
-    });
-    if (rows.length) await supabase.from("disparo_logs").insert(rows);
-    // Já contabiliza invalidos como "falhas pré-detectadas" no agregado do disparo
-    if (invalidos > 0) {
-      await supabase.from("disparos").update({ falhas: invalidos }).eq("id", created.id);
+      });
     }
 
-    const validos = rows.length - invalidos;
-    if (invalidos > 0) {
-      toast.success(`🚀 ${validos} enviados para fila · ${invalidos} ignorados (telefone inválido)`);
-    } else {
-      toast.success("🚀 Fila criada — iniciando disparo");
+    if (rows.length) await supabase.from("disparo_logs").insert(rows);
+    // Pré-contabiliza inválidos + duplicados como falhas no agregado
+    const preFalhas = invalidos + duplicados;
+    if (preFalhas > 0) {
+      await supabase.from("disparos").update({ falhas: preFalhas }).eq("id", created.id);
     }
+
+    const validos = rows.length - invalidos - duplicados;
+    const partes: string[] = [`🚀 ${validos} enviados para fila`];
+    if (duplicados > 0) partes.push(`${duplicados} duplicados ignorados`);
+    if (invalidos > 0) partes.push(`${invalidos} telefones inválidos`);
+    toast.success(partes.join(" · "));
     await carregar();
     setActiveId(created.id);
     iniciar(created as Disparo);
