@@ -88,14 +88,11 @@ const TagsFunilPage = () => {
 
   // Queries
   const { data: tags = [], isLoading: loadingTags } = useQuery({
-    queryKey: ["tags"],
+    queryKey: ["tags-config"],
     queryFn: async () => {
-      // In a real app, we'd also join with contatos to get counts
-      // For now, let's just get the tags
       const { data, error } = await supabase
         .from("tags")
         .select("*")
-        .eq("user_id", user?.id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -150,7 +147,7 @@ const TagsFunilPage = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tags"] });
+      queryClient.invalidateQueries({ queryKey: ["tags-config"] });
       setTagName("");
       toast.success("Tag criada!");
     }
