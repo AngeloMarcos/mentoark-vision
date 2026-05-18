@@ -79,16 +79,14 @@ const TagsFunilPage = () => {
   // Tag States
   const [tagName, setTagName] = useState("");
   const [tagColor, setTagColor] = useState(PREDEFINED_COLORS[0]);
-  const [editingTag, setEditingTag] = useState<TagType | null>(null);
 
   // Stage States
   const [stageName, setStageName] = useState("");
   const [stageColor, setStageColor] = useState(PREDEFINED_COLORS[0]);
-  const [editingStage, setEditingStage] = useState<StageType | null>(null);
 
   // Queries
   const { data: tags = [], isLoading: loadingTags } = useQuery({
-    queryKey: ["tags-management"],
+    queryKey: ["tags-management-data"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tags" as any)
@@ -111,7 +109,7 @@ const TagsFunilPage = () => {
   });
 
   const { data: stages = [], isLoading: loadingStages } = useQuery({
-    queryKey: ["funil-estagios-config"],
+    queryKey: ["funil-estagios-config-data"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("funil_estagios" as any)
@@ -120,7 +118,6 @@ const TagsFunilPage = () => {
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        // Suggested defaults
         const defaults = [
           "Novo Lead", "Qualificado", "Proposta Enviada", 
           "Negociação", "Fechado", "Perdido"
@@ -141,11 +138,11 @@ const TagsFunilPage = () => {
   // Mutations
   const createTagMutation = useMutation({
     mutationFn: async (newTag: { nome: string; cor: string }) => {
-      const { error } = await supabase.from("tags").insert([{ ...newTag, user_id: user?.id }]);
+      const { error } = await supabase.from("tags" as any).insert([{ ...newTag, user_id: user?.id }]);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tags-config"] });
+      queryClient.invalidateQueries({ queryKey: ["tags-management-data"] });
       setTagName("");
       toast.success("Tag criada!");
     }
@@ -153,7 +150,7 @@ const TagsFunilPage = () => {
 
   const createStageMutation = useMutation({
     mutationFn: async (newStage: { nome: string; cor: string }) => {
-      const { error } = await supabase.from("funil_estagios").insert([{
+      const { error } = await supabase.from("funil_estagios" as any).insert([{
         ...newStage,
         user_id: user?.id,
         ordem: stages.length
@@ -161,7 +158,7 @@ const TagsFunilPage = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["funil-estagios"] });
+      queryClient.invalidateQueries({ queryKey: ["funil-estagios-config-data"] });
       setStageName("");
       toast.success("Estágio criado!");
     }
@@ -169,11 +166,11 @@ const TagsFunilPage = () => {
 
   const deleteStageMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("funil_estagios").delete().eq("id", id);
+      const { error } = await supabase.from("funil_estagios" as any).delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["funil-estagios"] });
+      queryClient.invalidateQueries({ queryKey: ["funil-estagios-config-data"] });
       toast.success("Estágio removido");
     }
   });
@@ -187,10 +184,10 @@ const TagsFunilPage = () => {
         nome: s.nome,
         cor: s.cor
       }));
-      const { error } = await supabase.from("funil_estagios").upsert(updates);
+      const { error } = await supabase.from("funil_estagios" as any).upsert(updates);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["funil-estagios"] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["funil-estagios-config-data"] })
   });
 
   const sensors = useSensors(
