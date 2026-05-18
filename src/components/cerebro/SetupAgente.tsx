@@ -19,6 +19,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onConcluir: () => void;
+  initialStep?: number;
 }
 
 const STEPS = [
@@ -34,9 +35,11 @@ const TONS = ["profissional", "amigável", "consultivo", "formal", "descontraíd
 const IDIOMAS = ["Português BR", "Português PT", "Espanhol", "Inglês"];
 const MODELOS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"];
 
-export function SetupAgente({ open, onClose, onConcluir }: Props) {
+export function SetupAgente({ open, onClose, onConcluir, initialStep }: Props) {
   const { user } = useAuth();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(initialStep ?? 1);
+
+  useEffect(() => { if (open) setStep(initialStep ?? 1); }, [open, initialStep]);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [testando, setTestando] = useState(false);

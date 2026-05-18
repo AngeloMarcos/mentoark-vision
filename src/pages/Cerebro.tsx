@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Brain, Download, Plus, Trash2, Pencil, User, Building2, HelpCircle, Shield, FileText, Database, MessageCircle, FileCode, Settings, Loader2, RefreshCw, Wand2, Search, Upload, Volume2 } from "lucide-react";
+import { Brain, Download, Plus, Trash2, Pencil, User, Building2, HelpCircle, Shield, FileText, Database, MessageCircle, FileCode, Settings, Loader2, RefreshCw, Wand2, Search, Upload, Volume2, Copy } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -335,8 +335,23 @@ function ObjecoesEditor({ items, onSave, onDelete }: EditorProps) {
   );
 }
 
+// Badge colorido por categoria (hash determinístico)
+const CAT_CORES = [
+  "bg-blue-100 text-blue-700 border-0",
+  "bg-purple-100 text-purple-700 border-0",
+  "bg-emerald-100 text-emerald-700 border-0",
+  "bg-orange-100 text-orange-700 border-0",
+  "bg-pink-100 text-pink-700 border-0",
+  "bg-teal-100 text-teal-700 border-0",
+];
+function categoriaCor(cat: string) {
+  let h = 0;
+  for (let i = 0; i < cat.length; i++) h = (h + cat.charCodeAt(i)) % CAT_CORES.length;
+  return CAT_CORES[h];
+}
+
 // ============ SCRIPTS EDITOR ============
-function ScriptsEditor({ items, onSave, onDelete }: EditorProps) {
+function ScriptsEditor({ items, onSave, onDelete, onOpenBuilder }: EditorProps & { onOpenBuilder: () => void }) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nome, setNome] = useState("");
@@ -344,6 +359,17 @@ function ScriptsEditor({ items, onSave, onDelete }: EditorProps) {
   const [conteudo, setConteudo] = useState("");
   const [preview, setPreview] = useState<ConhecimentoItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [filtroCategoria, setFiltroCategoria] = useState("todas");
+
+  const categorias = useMemo(
+    () => [...new Set(items.map((i) => i.categoria).filter(Boolean))] as string[],
+    [items],
+  );
+
+  const itensFiltrados = useMemo(
+    () => filtroCategoria === "todas" ? items : items.filter((i) => i.categoria === filtroCategoria),
+    [items, filtroCategoria],
+  );
 
   const openDialog = (item?: ConhecimentoItem) => {
     if (item) {
@@ -366,42 +392,105 @@ function ScriptsEditor({ items, onSave, onDelete }: EditorProps) {
     setOpen(false);
   };
 
+  const copiar = (s: ConhecimentoItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(s.conteudo);
+    toast.success(`Script "${s.campo}" copiado!`);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <p className="text-sm text-muted-foreground">{items.length} scripts disponíveis</p>
-        <Button onClick={() => openDialog()} size="sm"><Plus className="h-4 w-4" /> Novo Script</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onOpenBuilder}>
+            <Wand2 className="h-4 w-4 mr-1" /> Usar Script Builder
+          </Button>
+          <Button size="sm" onClick={() => openDialog()}>
+            <Plus className="h-4 w-4 mr-1" /> Novo Script
+          </Button>
+        </div>
       </div>
+
+      {/* Filtro por categoria */}
+      {categorias.length > 0 && (
+        <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Todas as categorias" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as categorias</SelectItem>
+            {categorias.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* Lista de cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {items.map((s) => (
-          <Card key={s.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => setPreview(s)}>
+        {itensFiltrados.map((s) => (
+          <Card
+            key={s.id}
+            className="cursor-pointer hover:border-primary transition-colors"
+            onClick={() => setPreview(s)}
+          >
             <CardContent className="pt-4">
               <div className="flex justify-between items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    {s.categoria && <Badge variant="outline">{s.categoria}</Badge>}
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {s.categoria && (
+                      <Badge className={categoriaCor(s.categoria)}>{s.categoria}</Badge>
+                    )}
                     <IndexBadge indexado={s.indexado} />
                   </div>
                   <h4 className="font-semibold truncate">{s.campo}</h4>
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{s.conteudo}</p>
                 </div>
-                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" onClick={() => openDialog(s)}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" title="Copiar conteúdo" onClick={(e) => copiar(s, e)}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => openDialog(s)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => onDelete(s.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
+        {itensFiltrados.length === 0 && (
+          <p className="text-sm text-muted-foreground col-span-2 text-center py-6 border border-dashed rounded-lg">
+            Nenhum script encontrado{filtroCategoria !== "todas" ? ` na categoria "${filtroCategoria}"` : ""}.
+          </p>
+        )}
       </div>
 
+      {/* Preview dialog */}
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="w-[95vw] max-w-2xl">
-          <DialogHeader><DialogTitle>{preview?.campo}</DialogTitle></DialogHeader>
-          <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-lg max-h-96 overflow-auto">{preview?.conteudo}</pre>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {preview?.campo}
+              {preview?.categoria && <Badge className={categoriaCor(preview.categoria)}>{preview.categoria}</Badge>}
+            </DialogTitle>
+          </DialogHeader>
+          <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-4 rounded-lg max-h-96 overflow-auto">
+            {preview?.conteudo}
+          </pre>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { navigator.clipboard.writeText(preview?.conteudo ?? ""); toast.success("Copiado!"); }}>
+              <Copy className="h-4 w-4 mr-2" /> Copiar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Edit/create dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[95vw] max-w-2xl">
           <DialogHeader><DialogTitle>{editingId ? "Editar" : "Novo"} Script</DialogTitle></DialogHeader>
@@ -565,6 +654,7 @@ export default function CerebroPage() {
   const [itens, setItens] = useState<ConhecimentoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [setupInitialStep, setSetupInitialStep] = useState(1);
 
   const carregar = useCallback(async () => {
     if (!user) return;
@@ -879,7 +969,7 @@ export default function CerebroPage() {
               <ObjecoesEditor {...objecoes} />
             </TabsContent>
             <TabsContent value="scripts" className="mt-4">
-              <ScriptsEditor {...scripts} />
+              <ScriptsEditor {...scripts} onOpenBuilder={() => { setSetupInitialStep(5); setSetupOpen(true); }} />
             </TabsContent>
             <TabsContent value="vetorial" className="mt-4">
               <BaseVetorial />
@@ -900,7 +990,7 @@ export default function CerebroPage() {
         )}
       </div>
 
-      <SetupAgente open={setupOpen} onClose={() => setSetupOpen(false)} onConcluir={carregar} />
+      <SetupAgente open={setupOpen} onClose={() => setSetupOpen(false)} onConcluir={carregar} initialStep={setupInitialStep} />
     </CRMLayout>
   );
 }
