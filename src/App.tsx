@@ -17,6 +17,7 @@ import ContatoDetalhePage from "./pages/ContatoDetalhe";
 import DiscagemPage from "./pages/Discagem";
 import FunilPage from "./pages/Funil";
 import WhatsAppPage from "./pages/WhatsApp";
+import SLAPage from "./pages/SLA";
 import DisparosPage from "./pages/Disparos";
 import CampanhasPage from "./pages/Campanhas";
 import IntegracoesPage from "./pages/Integracoes";
