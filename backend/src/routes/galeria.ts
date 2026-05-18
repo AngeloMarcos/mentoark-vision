@@ -97,13 +97,111 @@ export default function galeriaRouter(pool: Pool): Router {
   router.get('/tags', async (req: AuthRequest, res: Response) => {
     try {
       const r = await pool.query(
-        `SELECT DISTINCT unnest(tags) AS tag
-         FROM galeria_midias
-         WHERE user_id = $1
-         ORDER BY tag`,
+        `SELECT
+           t.id, t.nome, t.cor, t.icone, t.created_at,
+           COUNT(m.id)::int AS total_midias
+         FROM galeria_tags t
+         LEFT JOIN galeria_midias m
+           ON t.nome = ANY(m.tags) AND m.user_id = t.user_id
+         WHERE t.user_id = $1
+         GROUP BY t.id
+         ORDER BY t.nome`,
         [req.userId]
       );
-      return res.json(r.rows.map(row => row.tag));
+      return res.json(r.rows);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── POST /api/galeria/tags ───────────────────────────────────────────────
+  router.post('/tags', async (req: AuthRequest, res: Response) => {
+    try {
+      const { nome, cor = '#6366f1', icone = 'tag' } = req.body;
+      if (!nome?.trim()) return res.status(400).json({ message: 'Nome é obrigatório.' });
+
+      const exists = await pool.query(
+        'SELECT id FROM galeria_tags WHERE user_id = $1 AND nome = $2',
+        [req.userId, nome.trim()]
+      );
+      if (exists.rows.length) return res.status(409).json({ message: 'Tag já existe.' });
+
+      const r = await pool.query(
+        `INSERT INTO galeria_tags (user_id, nome, cor, icone)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [req.userId, nome.trim(), cor, icone]
+      );
+      return res.status(201).json(r.rows[0]);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── PATCH /api/galeria/tags/:id ─────────────────────────────────────────
+  router.patch('/tags/:id', async (req: AuthRequest, res: Response) => {
+    try {
+      const { nome, cor, icone } = req.body;
+
+      const current = await pool.query(
+        'SELECT * FROM galeria_tags WHERE id = $1 AND user_id = $2',
+        [req.params.id, req.userId]
+      );
+      if (!current.rows.length) return res.status(404).json({ message: 'Tag não encontrada.' });
+
+      const oldNome = current.rows[0].nome;
+      const newNome = nome?.trim() ?? oldNome;
+
+      if (newNome !== oldNome) {
+        const dup = await pool.query(
+          'SELECT id FROM galeria_tags WHERE user_id = $1 AND nome = $2 AND id != $3',
+          [req.userId, newNome, req.params.id]
+        );
+        if (dup.rows.length) return res.status(409).json({ message: 'Já existe outra tag com esse nome.' });
+
+        await pool.query(
+          `UPDATE galeria_midias
+           SET tags = array_replace(tags, $1, $2)
+           WHERE user_id = $3 AND $1 = ANY(tags)`,
+          [oldNome, newNome, req.userId]
+        );
+      }
+
+      const r = await pool.query(
+        `UPDATE galeria_tags
+         SET nome  = COALESCE($1, nome),
+             cor   = COALESCE($2, cor),
+             icone = COALESCE($3, icone)
+         WHERE id = $4 AND user_id = $5
+         RETURNING *`,
+        [newNome, cor ?? null, icone ?? null, req.params.id, req.userId]
+      );
+      return res.json(r.rows[0]);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── DELETE /api/galeria/tags/:id ────────────────────────────────────────
+  router.delete('/tags/:id', async (req: AuthRequest, res: Response) => {
+    try {
+      const tag = await pool.query(
+        'SELECT nome FROM galeria_tags WHERE id = $1 AND user_id = $2',
+        [req.params.id, req.userId]
+      );
+      if (!tag.rows.length) return res.status(404).json({ message: 'Tag não encontrada.' });
+
+      const nome = tag.rows[0].nome;
+      await pool.query(
+        `UPDATE galeria_midias
+         SET tags = array_remove(tags, $1)
+         WHERE user_id = $2 AND $1 = ANY(tags)`,
+        [nome, req.userId]
+      );
+      await pool.query(
+        'DELETE FROM galeria_tags WHERE id = $1 AND user_id = $2',
+        [req.params.id, req.userId]
+      );
+      return res.status(204).send();
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
