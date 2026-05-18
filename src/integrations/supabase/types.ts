@@ -1007,6 +1007,33 @@ export type Database = {
         }
         Relationships: []
       }
+      respostas_rapidas: {
+        Row: {
+          atalho: string
+          created_at: string | null
+          id: string
+          mensagem: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          atalho: string
+          created_at?: string | null
+          id?: string
+          mensagem: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          atalho?: string
+          created_at?: string | null
+          id?: string
+          mensagem?: string
+          titulo?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tarefas: {
         Row: {
           concluida_at: string | null
