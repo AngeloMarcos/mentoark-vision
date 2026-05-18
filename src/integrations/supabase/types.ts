@@ -729,6 +729,33 @@ export type Database = {
         }
         Relationships: []
       }
+      funil_estagios: {
+        Row: {
+          cor: string | null
+          created_at: string | null
+          id: string
+          nome: string
+          ordem: number | null
+          user_id: string
+        }
+        Insert: {
+          cor?: string | null
+          created_at?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          user_id: string
+        }
+        Update: {
+          cor?: string | null
+          created_at?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       galeria_imagens: {
         Row: {
           created_at: string | null
