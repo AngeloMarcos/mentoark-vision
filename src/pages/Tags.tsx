@@ -88,16 +88,15 @@ const TagsFunilPage = () => {
 
   // Queries
   const { data: tags = [], isLoading: loadingTags } = useQuery({
-    queryKey: ["tags-config"],
+    queryKey: ["tags-management"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("tags")
+        .from("tags" as any)
         .select("*")
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       
-      // If empty, return default tags as specified in prompt
       if (!data || data.length === 0) {
         return [
           { id: "default-1", nome: "Lead", cor: "#3b82f6", count: 0 },
@@ -112,12 +111,11 @@ const TagsFunilPage = () => {
   });
 
   const { data: stages = [], isLoading: loadingStages } = useQuery({
-    queryKey: ["funil-estagios"],
+    queryKey: ["funil-estagios-config"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("funil_estagios")
+        .from("funil_estagios" as any)
         .select("*")
-        .eq("user_id", user?.id)
         .order("ordem", { ascending: true });
       if (error) throw error;
 
