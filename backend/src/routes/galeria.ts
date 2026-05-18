@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { AuthRequest } from '../middleware';
 import multer from 'multer';
@@ -273,7 +273,12 @@ export default function galeriaRouter(pool: Pool): Router {
 
   // ─── POST /api/galeria/upload ─────────────────────────────────────────────
   // Form-data: imagens[] (múltiplos arquivos), tags (JSON array ou CSV), titulo, pasta
-  router.post('/upload', upload.array('imagens', 20), async (req: AuthRequest, res: Response) => {
+  router.post('/upload', (req: AuthRequest, res: Response, next: NextFunction) => {
+    upload.array('imagens', 20)(req as any, res, (err: any) => {
+      if (err) return res.status(400).json({ message: err.message });
+      next();
+    });
+  }, async (req: AuthRequest, res: Response) => {
     const files = (req as any).files as Express.Multer.File[];
     try {
       if (!files || files.length === 0) {
