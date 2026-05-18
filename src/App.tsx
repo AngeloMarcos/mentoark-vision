@@ -12,6 +12,7 @@ import TermsPage from "./pages/Terms";
 import PrivacyPage from "./pages/Privacy";
 import DashboardPage from "./pages/Dashboard";
 import LeadsPage from "./pages/Leads";
+import TagsPage from "./pages/Tags";
 import ContatosPage from "./pages/Contatos";
 import ContatoDetalhePage from "./pages/ContatoDetalhe";
 import DiscagemPage from "./pages/Discagem";
@@ -52,7 +53,8 @@ const App = () => (
               <Route path="/privacidade" element={<PrivacyPage />} />
 
               <Route path="/dashboard"    element={<ProtectedRoute requireModulo="dashboard">  <DashboardPage /></ProtectedRoute>} />
-              <Route path="/leads"        element={<ProtectedRoute requireModulo="leads">       <LeadsPage /></ProtectedRoute>} />
+               <Route path="/leads"        element={<ProtectedRoute requireModulo="leads">       <LeadsPage /></ProtectedRoute>} />
+               <Route path="/tags"         element={<ProtectedRoute requireModulo="leads">       <TagsPage /></ProtectedRoute>} />
               <Route path="/contatos"     element={<ProtectedRoute requireModulo="contatos">    <ContatosPage /></ProtectedRoute>} />
               <Route path="/contatos/:id" element={<ProtectedRoute requireModulo="contatos">    <ContatoDetalhePage /></ProtectedRoute>} />
               <Route path="/discagem"     element={<ProtectedRoute requireModulo="discagem">    <DiscagemPage /></ProtectedRoute>} />
