@@ -67,7 +67,12 @@ const RespostasRapidas = () => {
       } else {
         const { error } = await supabase
           .from("respostas_rapidas")
-          .insert([{ ...newResponse, user_id: user?.id }]);
+          .insert([{
+            atalho: newResponse.atalho as string,
+            titulo: newResponse.titulo as string,
+            mensagem: newResponse.mensagem as string,
+            user_id: user?.id as string
+          }]);
         if (error) throw error;
       }
     },
