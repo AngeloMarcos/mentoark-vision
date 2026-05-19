@@ -42,14 +42,24 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  AlertOctagon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ScoreInstancia } from "./ScoreInstancia";
+
+interface ScoreFatores {
+  volume_diario: number;
+  taxa_resposta: number;
+  reclamacoes: number;
+  tempo_conta: number;
+}
 
 interface Agente {
   id: string;
   nome: string;
   evolution_instancia: string | null;
   whatsapp_score: number | null;
+  score_fatores: ScoreFatores | null;
   fallback_owner: string | null;
   filial: string | null;
   reject_calls: boolean | null;
@@ -68,18 +78,6 @@ interface Profile {
 }
 
 type ConnState = "open" | "close" | "connecting";
-
-function scoreColor(score: number) {
-  if (score <= 40) return "bg-red-500";
-  if (score <= 70) return "bg-yellow-500";
-  return "bg-emerald-500";
-}
-
-function scoreLabel(score: number) {
-  if (score <= 40) return "Risco alto";
-  if (score <= 70) return "Atenção";
-  return "Saudável";
-}
 
 function StatusChip({ state }: { state: ConnState }) {
   const cfg = {
@@ -103,6 +101,8 @@ export function InstanceManagementPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Agente | null>(null);
   const [saving, setSaving] = useState(false);
+  const [calculating, setCalculating] = useState<string | null>(null);
+
 
   const carregar = async () => {
     if (!user) return;
