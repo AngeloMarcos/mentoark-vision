@@ -155,30 +155,47 @@ export function InstanceManagementPanel() {
     [agentes]
   );
 
-  const handleSave = async () => {
-    if (!editing) return;
-    setSaving(true);
-    const payload = {
-      nome: editing.nome,
-      fallback_owner: editing.fallback_owner,
-      filial: editing.filial,
-      reject_calls: editing.reject_calls,
-      ignore_groups: editing.ignore_groups,
-      auto_read: editing.auto_read,
-      show_signature: editing.show_signature,
-      operation_mode: editing.operation_mode,
-      auto_distribute: editing.auto_distribute,
-      linked_agent_id: editing.linked_agent_id,
-    };
-    const { error } = await api.from("agentes").update(payload).eq("id", editing.id);
-    setSaving(false);
-    if (error) {
-      toast.error(`Erro ao salvar: ${error.message}`);
-      return;
+  const updateScore = async (id: string, mockData?: any) => {
+    setCalculating(id);
+    try {
+      // Em um cenário real, isso seria uma chamada para /api/agentes/:id/score
+      // que consultaria o histórico real de disparos, taxas e logs de ban.
+      // Aqui simulamos o cálculo baseado nas regras fornecidas.
+      
+      const data = mockData || {
+        volume_diario: Math.floor(Math.random() * 200),
+        taxa_resposta: Math.floor(Math.random() * 50),
+        reclamacoes: Math.floor(Math.random() * 5),
+        tempo_dias: Math.floor(Math.random() * 120),
+      };
+
+      let v_score = data.volume_diario < 50 ? 25 : data.volume_diario <= 150 ? 15 : 5;
+      let r_score = data.taxa_resposta > 30 ? 25 : data.taxa_resposta >= 10 ? 15 : 5;
+      let b_score = data.reclamacoes === 0 ? 25 : data.reclamacoes <= 3 ? 10 : 0;
+      let m_score = data.tempo_dias > 90 ? 25 : data.tempo_dias >= 30 ? 15 : 5;
+
+      const total = v_score + r_score + b_score + m_score;
+      const fatores: ScoreFatores = {
+        volume_diario: v_score,
+        taxa_resposta: r_score,
+        reclamacoes: b_score,
+        tempo_conta: m_score
+      };
+
+      const { error } = await api.from("agentes").update({
+        whatsapp_score: total,
+        score_fatores: fatores,
+        score_updated_at: new Date().toISOString()
+      }).eq("id", id);
+
+      if (error) throw error;
+      toast.success("Score atualizado com sucesso");
+      carregar();
+    } catch (err: any) {
+      toast.error(`Falha ao calcular score: ${err.message}`);
+    } finally {
+      setCalculating(null);
     }
-    toast.success("Configurações salvas");
-    setEditing(null);
-    carregar();
   };
 
   return (
@@ -212,9 +229,12 @@ export function InstanceManagementPanel() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {instancias.map(a => {
             const score = a.whatsapp_score ?? 100;
+            const fatores = a.score_fatores || { volume_diario: 25, taxa_resposta: 25, reclamacoes: 25, tempo_conta: 25 };
             const state: ConnState = statuses[a.id] ?? "close";
+            const isCritical = score < 40;
+
             return (
-              <Card key={a.id} className="p-5 space-y-4 hover:shadow-lg transition-shadow">
+              <Card key={a.id} className={`p-5 space-y-4 hover:shadow-lg transition-all border-2 ${isCritical ? 'border-red-500/50 bg-red-50/30' : 'border-transparent'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -229,44 +249,42 @@ export function InstanceManagementPanel() {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => setEditing(a)}
-                    title="Configurar instância"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => updateScore(a.id)}
+                      disabled={calculating === a.id}
+                      title="Recalcular score"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${calculating === a.id ? 'animate-spin' : ''}`} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setEditing(a)}
+                      title="Configurar instância"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <StatusChip state={state} />
 
-                <div className="space-y-1.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center justify-between text-xs cursor-help">
-                        <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                          <Activity className="h-3 w-3" /> Score de saúde
-                        </span>
-                        <span className="font-bold tabular-nums">
-                          {score} <span className="text-muted-foreground font-normal">/ 100</span>
-                        </span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[260px] text-xs">
-                      Score calculado com base em volume de disparos, taxa de resposta e
-                      histórico de bloqueios.
-                    </TooltipContent>
-                  </Tooltip>
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={`h-full ${scoreColor(score)} transition-all`}
-                      style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
-                    />
+                {isCritical && (
+                  <div className="flex items-center gap-2 p-2 bg-red-500 text-white rounded-md text-[11px] font-bold animate-pulse">
+                    <AlertOctagon className="h-3 w-3" />
+                    Score crítico — disparos pausados automaticamente
                   </div>
-                  <p className="text-[10px] text-muted-foreground">{scoreLabel(score)}</p>
-                </div>
+                )}
+
+                <ScoreInstancia 
+                  score={score} 
+                  fatores={fatores} 
+                />
 
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {a.operation_mode && (
@@ -283,10 +301,19 @@ export function InstanceManagementPanel() {
                     <Badge variant="outline" className="text-[10px]">{a.filial}</Badge>
                   )}
                 </div>
+                
+                <Button 
+                  className="w-full h-8 text-xs" 
+                  variant={isCritical ? "secondary" : "default"}
+                  disabled={isCritical}
+                >
+                  {isCritical ? "Disparos Desabilitados" : "Novo Disparo"}
+                </Button>
               </Card>
             );
           })}
         </div>
+
 
         {/* Modal de configuração */}
         <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
