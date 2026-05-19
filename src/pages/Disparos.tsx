@@ -213,20 +213,80 @@ function StepContacts({ form, setForm }: any) {
 
 
 function StepMessage({ form, setForm }: any) {
+  const mediaTypes = [
+    { id: "texto", label: "Texto", icon: MessageSquare },
+    { id: "imagem", label: "Imagem", icon: ImageIcon },
+    { id: "audio", label: "Áudio", icon: Headphones },
+    { id: "documento", label: "Documento", icon: FileText },
+  ];
+
   return (
     <Card className="p-6">
-      <div className="space-y-4">
-        <Label>Conteúdo da Mensagem</Label>
-        <Textarea className="min-h-[150px]" value={form.mensagem} onChange={e => setForm({...form, mensagem: e.target.value})} placeholder="Olá {{primeiro_nome}}..." />
-        <div className="flex gap-2">
-          {["Nome", "Telefone", "Empresa"].map(v => (
-            <Button key={v} size="sm" variant="outline" className="text-xs">+{v}</Button>
+      <div className="space-y-6">
+        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+          {mediaTypes.map(t => (
+            <Button 
+              key={t.id} 
+              variant={form.tipo_midia === t.id ? "default" : "ghost"} 
+              size="sm" 
+              className="h-8 gap-2"
+              onClick={() => setForm({...form, tipo_midia: t.id})}
+            >
+              <t.icon className="h-4 w-4" /> {t.label}
+            </Button>
           ))}
+        </div>
+
+        {form.tipo_midia !== 'texto' && (
+          <div className="space-y-2">
+            <Label>Arquivo de Mídia</Label>
+            <div className="flex gap-2">
+              <Input placeholder="URL do arquivo (ou faça upload)" value={form.url_midia} onChange={e => setForm({...form, url_midia: e.target.value})} />
+              <Button variant="outline"><Upload className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <div className="flex justify-between items-end">
+            <Label>{form.tipo_midia === 'texto' ? 'Mensagem' : 'Legenda (opcional)'}</Label>
+            <span className="text-[10px] text-muted-foreground">{form.mensagem.length}/1024</span>
+          </div>
+          <Textarea 
+            className="min-h-[150px] font-mono text-sm" 
+            value={form.mensagem} 
+            onChange={e => setForm({...form, mensagem: e.target.value})} 
+            placeholder={form.tipo_midia === 'texto' ? "Olá {{primeiro_nome}}, tudo bem?" : "Legenda do arquivo..."} 
+          />
+          <div className="flex gap-2 flex-wrap">
+            {["{{nome}}", "{{primeiro_nome}}", "{{telefone}}", "{{data}}", "{{empresa}}"].map(v => (
+              <Button key={v} size="sm" variant="secondary" className="text-[10px] h-7" onClick={() => {
+                setForm({...form, mensagem: form.mensagem + v});
+              }}>+{v}</Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Preview Card */}
+        <div className="p-4 border rounded-lg bg-emerald-50/30 dark:bg-emerald-950/10">
+          <p className="text-[10px] font-bold uppercase text-emerald-600 mb-2">Preview do 1º Contato</p>
+          <div className="p-3 bg-white dark:bg-zinc-900 rounded shadow-sm max-w-[80%] border-l-4 border-emerald-500">
+            {form.tipo_midia !== 'texto' && (
+              <div className="aspect-video bg-muted rounded mb-2 flex items-center justify-center">
+                <ImageIcon className="h-8 w-8 opacity-20" />
+              </div>
+            )}
+            <p className="text-sm whitespace-pre-wrap">
+              {form.mensagem.replace('{{nome}}', 'João Silva').replace('{{primeiro_nome}}', 'João')}
+            </p>
+            <span className="text-[10px] text-muted-foreground float-right">10:45</span>
+          </div>
         </div>
       </div>
     </Card>
   );
 }
+
 
 function StepAntiBan({ form, setForm }: any) {
   return (
