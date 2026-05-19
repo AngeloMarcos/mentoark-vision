@@ -569,16 +569,17 @@ function MonitoringDashboard({ campaign, onCancel }: { campaign: any, onCancel: 
       </div>
 
       {failureRate > 10 && (
-        <Alert variant={failureRate > 25 ? "destructive" : "warning"} className="animate-bounce">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>{failureRate > 25 ? "Pausa Automática Ativada" : "Taxa de Falha Elevada"}</AlertTitle>
-          <AlertDescription>
+        <Alert variant={failureRate > 25 ? "destructive" : "default"} className={`animate-bounce ${failureRate <= 25 ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : ''}`}>
+          <AlertCircle className={`h-4 w-4 ${failureRate <= 25 ? 'text-yellow-500' : ''}`} />
+          <AlertTitle className={failureRate <= 25 ? 'text-yellow-600' : ''}>{failureRate > 25 ? "Pausa Automática Ativada" : "Taxa de Falha Elevada"}</AlertTitle>
+          <AlertDescription className={failureRate <= 25 ? 'text-yellow-600/80' : ''}>
             {failureRate > 25 
               ? "A campanha foi pausada automaticamente devido a uma taxa de erro superior a 25%." 
               : "Detectamos que mais de 10% dos disparos estão falhando. Recomendamos revisar suas instâncias."}
           </AlertDescription>
         </Alert>
       )}
+
       
       <div className="grid grid-cols-4 gap-4">
         {stats.map(s => (
