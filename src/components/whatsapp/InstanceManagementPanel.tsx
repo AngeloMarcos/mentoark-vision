@@ -193,7 +193,13 @@ export function InstanceManagementPanel() {
       carregar();
     } catch (err: any) {
       toast.error(`Falha ao calcular score: ${err.message}`);
+    } finally {
+      setCalculating(null);
+    }
+  };
+
   const handleSave = async () => {
+
     if (!editing) return;
     setSaving(true);
     const payload = {
