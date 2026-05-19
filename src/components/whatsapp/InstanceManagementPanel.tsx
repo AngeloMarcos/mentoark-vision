@@ -193,13 +193,35 @@ export function InstanceManagementPanel() {
       carregar();
     } catch (err: any) {
       toast.error(`Falha ao calcular score: ${err.message}`);
-    } finally {
-      setCalculating(null);
+  const handleSave = async () => {
+    if (!editing) return;
+    setSaving(true);
+    const payload = {
+      nome: editing.nome,
+      fallback_owner: editing.fallback_owner,
+      filial: editing.filial,
+      reject_calls: editing.reject_calls,
+      ignore_groups: editing.ignore_groups,
+      auto_read: editing.auto_read,
+      show_signature: editing.show_signature,
+      operation_mode: editing.operation_mode,
+      auto_distribute: editing.auto_distribute,
+      linked_agent_id: editing.linked_agent_id,
+    };
+    const { error } = await api.from("agentes").update(payload).eq("id", editing.id);
+    setSaving(false);
+    if (error) {
+      toast.error(`Erro ao salvar: ${error.message}`);
+      return;
     }
+    toast.success("Configurações salvas");
+    setEditing(null);
+    carregar();
   };
 
   return (
     <TooltipProvider>
+
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
