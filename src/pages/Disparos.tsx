@@ -9,17 +9,19 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   ShieldCheck, ShieldAlert, Shield, Play, Pause, Square,
   Settings2, AlertOctagon, RefreshCw, Users, Upload, 
   Clock, Calendar, MessageSquare, Image as ImageIcon, 
   FileText, Headphones, AlertTriangle, CheckCircle2,
-  Table as TableIcon
+  Table as TableIcon, Send, XCircle, Activity, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import * as XLSX from "xlsx";
+
 
 const Steps = ["Lista de Contatos", "Mensagem", "Proteção Anti-ban", "Revisar e Agendar"];
 
