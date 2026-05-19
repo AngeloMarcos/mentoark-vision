@@ -289,23 +289,132 @@ function StepMessage({ form, setForm }: any) {
 
 
 function StepAntiBan({ form, setForm }: any) {
+  const [instancias, setInstancias] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchInstancias = async () => {
+      const { data } = await supabase.from("agentes").select("*").not("evolution_instancia", "is", null);
+      setInstancias(data || []);
+      setLoading(false);
+    };
+    fetchInstancias();
+  }, []);
+
+  const profiles = [
+    { id: "safe", label: "SEGURO", icon: ShieldCheck, color: "text-emerald-500", delay: "30-60s", limit: "50", desc: "Recomendado para novos números" },
+    { id: "moderate", label: "MODERADO", icon: Shield, color: "text-yellow-500", delay: "15-30s", limit: "100", desc: "Equilíbrio entre velocidade e segurança" },
+    { id: "fast", label: "RÁPIDO", icon: ShieldAlert, color: "text-red-500", delay: "5-15s", limit: "200", desc: "Risco aumentado de banimento", alert: true },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Instances Selection */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <Label className="font-bold">Instâncias para Disparar</Label>
+          <div className="flex items-center gap-2">
+            <Switch />
+            <span className="text-xs">Apenas saudáveis (&gt;70)</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {instancias.map(inst => {
+            const isBlocked = (inst.whatsapp_score || 0) < 40;
+            return (
+              <div key={inst.id} className={`flex items-center justify-between p-3 border rounded-lg ${isBlocked ? 'bg-red-50/50 dark:bg-red-950/10 border-red-200' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="checkbox" 
+                    disabled={isBlocked} 
+                    checked={form.instancias_ids.includes(inst.id)}
+                    onChange={(e) => {
+                      const ids = e.target.checked 
+                        ? [...form.instancias_ids, inst.id]
+                        : form.instancias_ids.filter((id: string) => id !== inst.id);
+                      setForm({...form, instancias_ids: ids});
+                    }}
+                    className="h-4 w-4" 
+                  />
+                  <div>
+                    <p className="text-sm font-bold">{inst.nome}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">{inst.evolution_instancia}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Badge variant={isBlocked ? "destructive" : "outline"} className="text-[10px]">
+                    Score: {inst.whatsapp_score || 0}
+                  </Badge>
+                  {isBlocked && <p className="text-[9px] text-red-500 font-bold mt-1 uppercase">Bloqueada</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Velocity Profiles */}
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { id: "safe", label: "Seguro", icon: ShieldCheck, color: "text-green-500" },
-          { id: "moderate", label: "Moderado", icon: Shield, color: "text-yellow-500" },
-          { id: "fast", label: "Rápido", icon: ShieldAlert, color: "text-red-500" }
-        ].map(p => (
-          <Card key={p.id} className={`p-4 cursor-pointer hover:border-primary ${form.perfil_velocidade === p.id ? 'border-primary' : ''}`} onClick={() => setForm({...form, perfil_velocidade: p.id})}>
+        {profiles.map(p => (
+          <Card 
+            key={p.id} 
+            className={`p-4 cursor-pointer transition-all border-2 ${form.perfil_velocidade === p.id ? 'border-primary shadow-md' : 'border-transparent'}`}
+            onClick={() => setForm({...form, perfil_velocidade: p.id})}
+          >
             <p.icon className={`h-8 w-8 mb-2 ${p.color}`} />
-            <h3 className="font-bold">{p.label}</h3>
+            <h3 className="font-bold text-sm">{p.label}</h3>
+            <div className="mt-2 space-y-1">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" /> Delay: {p.delay}</p>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3" /> Limite: {p.limit}/dia</p>
+            </div>
+            {p.alert && <p className="text-[9px] text-red-500 font-bold mt-2 uppercase flex items-center gap-1"><AlertOctagon className="h-3 w-3" /> Risco de Ban</p>}
           </Card>
         ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Sending Window */}
+        <Card className="p-4 space-y-4">
+          <Label className="font-bold flex items-center gap-2"><Calendar className="h-4 w-4" /> Janela de Envio</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Início</span>
+              <Input type="time" value={form.janela_inicio} onChange={e => setForm({...form, janela_inicio: e.target.value})} />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Término</span>
+              <Input type="time" value={form.janela_fim} onChange={e => setForm({...form, janela_fim: e.target.value})} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs">Pausar nos fins de semana</span>
+            <Switch checked={form.pausa_fins_semana} onCheckedChange={v => setForm({...form, pausa_fins_semana: v})} />
+          </div>
+        </Card>
+
+        {/* Auto Pause */}
+        <Card className="p-4 space-y-4">
+          <Label className="font-bold flex items-center gap-2"><Settings2 className="h-4 w-4" /> Pausa Automática</Label>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs">Pausar em erros consecutivos</span>
+              <Switch checked={form.pausa_erros_consecutivos} onCheckedChange={v => setForm({...form, pausa_erros_consecutivos: v})} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs">Pausar se bloqueios detectados</span>
+              <Switch checked={form.pausa_bloqueios_detectados} onCheckedChange={v => setForm({...form, pausa_bloqueios_detectados: v})} />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Falhas seguidas para pausar</span>
+              <Input type="number" value={form.limite_erros_consecutivos} onChange={e => setForm({...form, limite_erros_consecutivos: parseInt(e.target.value)})} className="h-8" />
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
+
 
 function StepReview({ form, onStart }: any) {
   return (
