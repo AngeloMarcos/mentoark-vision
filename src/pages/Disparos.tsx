@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,24 +11,42 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
   ShieldCheck, ShieldAlert, Shield, Play, Pause, Square,
-  Settings2, AlertOctagon, RefreshCw
+  Settings2, AlertOctagon, RefreshCw, Users, Upload, 
+  Clock, Calendar, MessageSquare, Image as ImageIcon, 
+  FileText, Headphones, AlertTriangle, CheckCircle2,
+  Table as TableIcon
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import * as XLSX from "xlsx";
 
 const Steps = ["Lista de Contatos", "Mensagem", "Proteção Anti-ban", "Revisar e Agendar"];
 
 export default function DisparosPage() {
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [activeCampaign, setActiveCampaign] = useState<any>(null);
 
   const [form, setForm] = useState({
     nome: "",
-    tipo_midia: "texto",
+    tipo_midia: "texto" as "texto" | "imagem" | "audio" | "documento",
     mensagem: "",
-    perfil_velocidade: "safe",
+    perfil_velocidade: "safe" as "safe" | "moderate" | "fast",
     janela_inicio: "08:00",
     janela_fim: "21:00",
+    pausa_fins_semana: true,
+    pausa_erros_consecutivos: true,
+    limite_erros_consecutivos: 5,
+    pausa_bloqueios_detectados: true,
+    instancias_ids: [] as string[],
+    contatos: [] as any[],
+    tags_selecionadas: [] as string[],
+    estagios_selecionados: [] as string[],
+    url_midia: "",
+    legenda_midia: "",
   });
+
 
   if (activeCampaign) {
     return <MonitoringDashboard campaign={activeCampaign} onCancel={() => setActiveCampaign(null)} />;
