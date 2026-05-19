@@ -86,28 +86,131 @@ export default function DisparosPage() {
   );
 }
 
-function StepContacts() {
+function StepContacts({ form, setForm }: any) {
+  const [tags, setTags] = useState<any[]>([]);
+  const [estagios, setEstagios] = useState<any[]>([]);
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTargets = async () => {
+      const { data: tagsData } = await supabase.from("tags").select("*");
+      const { data: estagiosData } = await supabase.from("funil_estagios").select("*");
+      setTags(tagsData || []);
+      setEstagios(estagiosData || []);
+    };
+    fetchTargets();
+  }, []);
+
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: "binary" });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      setCsvPreview(data.slice(0, 5));
+      // Map columns logic here...
+      toast.success("CSV importado com sucesso!");
+    };
+    reader.readAsBinaryString(file);
+  };
+
   return (
-    <Tabs defaultValue="tags" className="w-full">
-      <TabsList>
-        <TabsTrigger value="tags">Por Tag</TabsTrigger>
-        <TabsTrigger value="estagio">Por Estágio</TabsTrigger>
-        <TabsTrigger value="csv">Importar CSV</TabsTrigger>
-      </TabsList>
-      <TabsContent value="tags" className="p-4 border rounded-lg bg-card space-y-4">
-        <p className="text-sm font-medium">Selecione as tags de contatos:</p>
-        <div className="grid grid-cols-2 gap-2">
-            {["Lead", "VIP", "Cliente Ativo"].map(t => (
-              <div key={t} className="flex items-center space-x-2">
-                <input type="checkbox" id={t} className="h-4 w-4" />
-                <label htmlFor={t}>{t} (120 contatos)</label>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1">
+        <Label>Nome da Campanha</Label>
+        <Input placeholder="Ex: Campanha Black Friday" value={form.nome} onChange={e => setForm({...form, nome: e.target.value})} />
+      </div>
+
+      <Tabs defaultValue="tags" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="tags">Por Tag</TabsTrigger>
+          <TabsTrigger value="estagio">Por Estágio</TabsTrigger>
+          <TabsTrigger value="csv">Importar CSV</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="tags" className="p-4 border rounded-lg bg-card space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Selecione as tags:</p>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2">
+                <Switch checked />
+                <span className="text-xs">Excluir Opt-outs</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked disabled />
+                <span className="text-xs">Excluir Blacklist</span>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {tags.map(t => (
+              <div key={t.id} className="flex items-center space-x-2 p-2 border rounded hover:bg-muted/50">
+                <input type="checkbox" id={t.id} className="h-4 w-4" onChange={(e) => {
+                  const newTags = e.target.checked 
+                    ? [...form.tags_selecionadas, t.nome]
+                    : form.tags_selecionadas.filter((st: string) => st !== t.nome);
+                  setForm({...form, tags_selecionadas: newTags});
+                }} />
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.cor }} />
+                <label htmlFor={t.id} className="text-sm cursor-pointer">{t.nome}</label>
               </div>
             ))}
-        </div>
-      </TabsContent>
-    </Tabs>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="estagio" className="p-4 border rounded-lg bg-card space-y-4">
+          <p className="text-sm font-medium">Selecione os estágios do funil:</p>
+          <div className="grid grid-cols-2 gap-3">
+            {estagios.map(s => (
+              <div key={s.id} className="flex items-center space-x-2 p-2 border rounded hover:bg-muted/50">
+                <input type="checkbox" id={s.id} className="h-4 w-4" onChange={(e) => {
+                  const newEstagios = e.target.checked 
+                    ? [...form.estagios_selecionados, s.id]
+                    : form.estagios_selecionados.filter((se: string) => se !== s.id);
+                  setForm({...form, estagios_selecionados: newEstagios});
+                }} />
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.cor }} />
+                <label htmlFor={s.id} className="text-sm cursor-pointer">{s.nome}</label>
+              </div>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="csv" className="p-4 border rounded-lg bg-card space-y-4 text-center">
+          <div className="py-8 border-2 border-dashed rounded-lg">
+            <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">Clique para fazer upload ou arraste o arquivo CSV</p>
+            <input type="file" className="hidden" id="csv-upload" accept=".csv,.xlsx" onChange={handleCsvUpload} />
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => document.getElementById('csv-upload')?.click()}>
+              Selecionar Arquivo
+            </Button>
+          </div>
+          {csvPreview.length > 0 && (
+            <div className="space-y-2 text-left">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Preview (Primeiras 5 linhas)</p>
+              <div className="border rounded overflow-hidden">
+                <table className="w-full text-xs">
+                  <tbody className="divide-y">
+                    {csvPreview.map((row, i) => (
+                      <tr key={i} className="divide-x">
+                        {row.map((cell: any, j: number) => <td key={j} className="p-1">{cell}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
+
 
 function StepMessage({ form, setForm }: any) {
   return (
